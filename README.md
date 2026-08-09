@@ -101,7 +101,7 @@ its record low, what came back in stock, what a purchase would save you today.
 <table>
 <tr>
 <td width="42%">
-<img src="docs/assets/popup.png" alt="StockWatch popup — the detected product with its store, name, sale price, struck-through original, size grid, alert options and a Track product button" />
+<img src="docs/assets/popup.png" alt="StockWatch popup on an H&M product page: store, product name, price, stock state, category, the full size grid, alert options, a target price field and a Track product button" />
 </td>
 <td valign="top">
 
@@ -121,9 +121,8 @@ correctly fell through to the DOM".
 </tr>
 </table>
 
-<sub>Screenshots use placeholder imagery in place of retailers' product
-photography; everything else is the real interface, rendered by the preview
-harness described under <a href="#testing">Testing</a>.</sub>
+<sub>Both screenshots are the extension running against live store pages.
+Product photography belongs to the retailers.</sub>
 
 ## Quick start
 

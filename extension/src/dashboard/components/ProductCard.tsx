@@ -11,8 +11,7 @@ import type { TrackedProductOut } from '../../lib/api';
 import { formatPrice } from '../../lib/price';
 import { StockLabel } from '../../popup/components/ui';
 
-function relativeTime(iso: string | null): string {
-  if (!iso) return 'never checked';
+function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
   const minutes = Math.round((Date.now() - then) / 60000);
   if (minutes < 1) return 'just now';
@@ -20,6 +19,22 @@ function relativeTime(iso: string | null): string {
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours} h ago`;
   return `${Math.round(hours / 24)} d ago`;
+}
+
+/**
+ * The whole phrase, not a fragment.
+ *
+ * Composing "Checked " with a relative time is fine right up until there is no
+ * time to be relative to, at which point a freshly tracked product reads
+ * "Checked never checked".
+ */
+function lastCheckedLabel(product: TrackedProductOut): string {
+  if (!product.last_checked_at) return 'Not checked yet';
+
+  const when = relativeTime(product.last_checked_at);
+  return product.last_check_status && product.last_check_status !== 'ok'
+    ? `Check ${product.last_check_status} · ${when}`
+    : `Checked ${when}`;
 }
 
 interface Props {
@@ -108,11 +123,7 @@ export function ProductCard({ product, onOpen, onPauseToggle, onDelete, onCheck,
             ) : null}
           </div>
 
-          <div className="sw-label mt-1.5">
-            {product.last_check_status === 'ok' || !product.last_check_status
-              ? `Checked ${relativeTime(product.last_checked_at)}`
-              : `Check ${product.last_check_status} · ${relativeTime(product.last_checked_at)}`}
-          </div>
+          <div className="sw-label mt-1.5">{lastCheckedLabel(product)}</div>
         </div>
       </button>
 
