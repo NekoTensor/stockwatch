@@ -31,9 +31,9 @@ dropdown, then works on nine sites. StockWatch inverts that: you are already
 looking at the product, so the extension reads *the page you are on*, and the
 engine that reads it does not know the name of a single store.
 
-<img src="docs/assets/Working.png">
-
-
+<p align="center">
+  <img src="docs/assets/architecture.svg" width="720" alt="Flow diagram: your browser detects, previews and tracks a product; a six-layer detection engine merges the result field by field; a FastAPI and PostgreSQL backend stores it; Celery workers with Redis poll and compare; alerts go out by browser notification and email" />
+</p>
 
 ## What it does
 
@@ -94,35 +94,30 @@ first paint, so opening the popup never flashes the wrong theme.
 Everything you track, with the numbers that decide whether to buy: what is at
 its record low, what came back in stock, what a purchase would save you today.
 
-![StockWatch dashboard — headline metrics above a grid of tracked products, each showing store, name, current and previous price, discount, stock state and when it was last checked](docs/assets/dashboard.png)
+<p align="center">
+  <img src="docs/assets/dashboard.png" width="820" alt="StockWatch dashboard — headline metrics above a grid of tracked products, each showing store, name, current and previous price, discount, stock state and when it was last checked" />
+</p>
 
 ### Popup
 
-<table>
-<tr>
-<td width="42%">
-<img src="docs/assets/popup.png" alt="StockWatch popup on an H&M product page: store, product name, price, stock state, category, the full size grid, alert options, a target price field and a Track product button" />
-</td>
-<td valign="top">
-
 Open a product page, click once, and the product is already there — read from
 the page you are on, not from a URL you had to paste.
+
+<p align="center">
+  <img src="docs/assets/popup.png" width="300" alt="StockWatch popup on an H&M product page: store, product name, price, stock state, category, the full size grid, alert options and a Track product button" />
+</p>
 
 **Sold-out sizes stay visible, struck through, and selectable.** Being told the
 moment *your* size returns is the entire point, so a chip has to be able to say
 "sold out" and "selected" at the same time.
 
 The confidence score and the layer that produced each field sit behind
-**Detection** at the bottom. When a store changes its markup, that panel is the
-difference between "detection broke" and "the JSON-LD price went stale and we
-correctly fell through to the DOM".
+**Detection** at the bottom of the popup. When a store changes its markup,
+that panel is the difference between "detection broke" and "the JSON-LD price
+went stale and we correctly fell through to the DOM".
 
-</td>
-</tr>
-</table>
-
-<sub>Both screenshots are the extension running against live store pages.
-Product photography belongs to the retailers.</sub>
+<p align="center"><sub>Both screenshots are the extension running against live store pages.
+Product photography belongs to the retailers.</sub></p>
 
 ## Quick start
 
