@@ -102,32 +102,41 @@ dashboard presents a metric: white space, hairlines, no rounded corners,
 uppercase wide-tracked labels against normal-case product names, and colour
 reserved for one red (reduced) and one green dot (in stock). Light and dark.
 
-```
-POPUP                              DASHBOARD
-┌────────────────────────┐         ┌──────────────────────────────────────────┐
-│ STOCKWATCH    DETECTED │         │ STOCKWATCH  OVERVIEW TRACKED …  SIGN OUT │
-├────────────────────────┤         ├──────────────────────────────────────────┤
-│                        │         │ TRACKED  IN STOCK  AT LOWEST  SAVING     │
-│    [ product image ]   │         │   24        18         5      ₹11,150    │
-│                        │         ├──────────────────────────────────────────┤
-├────────────────────────┤         │ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐       │
-│ ZARA                   │         │ │img │ │img │ │img │ │img │ │img │       │
-│ Leather Effect Jacket  │         │ └────┘ └────┘ └────┘ └────┘ └────┘       │
-│ ₹12,990  ₹15,990 −19%  │         │ ZARA    MYNTRA  H&M    NIKE   AMAZON     │
-│ ● In stock             │         │ Jacket  Jeans   Hoodie Shoes  Headphones │
-├────────────────────────┤         │ ₹12,990 ₹1,149  ₹1,999 ₹8,995 ₹8,499     │
-│ SIZE       3 SELECTED  │         └──────────────────────────────────────────┘
-│ ┌──┐┌──┐┌──┐┌──┐       │
-│ │S ││M̶ ││L̶ ││X̶L̶│       │         Sold-out sizes stay visible and struck
-│ └──┘└╌╌┘└╌╌┘└╌╌┘       │         through — and stay selectable, because
-├────────────────────────┤         being told when *your* size returns is
-│ ALERT ME ABOUT         │         the entire point.
-│ ■ Stock availability   │
-│ ■ Price changes        │
-│ TARGET PRICE  ₹ 10,000 │
-│ [    TRACK PRODUCT   ] │
-└────────────────────────┘
-```
+### Dashboard
+
+Everything you track, with the numbers that decide whether to buy: what is at
+its record low, what came back in stock, what a purchase would save you today.
+
+![StockWatch dashboard — headline metrics above a grid of tracked products, each showing store, name, current and previous price, discount, stock state and when it was last checked](docs/assets/dashboard.png)
+
+### Popup
+
+<table>
+<tr>
+<td width="42%">
+<img src="docs/assets/popup.png" alt="StockWatch popup — the detected product with its store, name, sale price, struck-through original, size grid, alert options and a Track product button" />
+</td>
+<td valign="top">
+
+Open a product page, click once, and the product is already there — read from
+the page you are on, not from a URL you had to paste.
+
+**Sold-out sizes stay visible, struck through, and selectable.** Being told the
+moment *your* size returns is the entire point, so a chip has to be able to say
+"sold out" and "selected" at the same time.
+
+The confidence score and the layer that produced each field sit behind
+**Detection** at the bottom. When a store changes its markup, that panel is the
+difference between "detection broke" and "the JSON-LD price went stale and we
+correctly fell through to the DOM".
+
+</td>
+</tr>
+</table>
+
+<sub>Screenshots use placeholder imagery in place of retailers' product
+photography; everything else is the real interface, rendered by the preview
+harness described under <a href="#testing">Testing</a>.</sub>
 
 ## Quick start
 

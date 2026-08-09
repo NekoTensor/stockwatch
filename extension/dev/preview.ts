@@ -21,6 +21,68 @@ import { normaliseHostname } from '../src/lib/url';
 const params = new URLSearchParams(location.search);
 const view = params.get('view') ?? 'popup';
 
+/**
+ * Force a colour scheme, for deterministic screenshots.
+ *
+ * The stylesheet keys off `prefers-color-scheme`, which a headless browser
+ * inherits from the host OS. Re-declaring the palette here — rather than adding
+ * a `data-theme` hook to the shipped CSS — keeps this entirely inside the dev
+ * harness.
+ */
+function forceTheme(theme: 'light' | 'dark'): void {
+  const palette =
+    theme === 'dark'
+      ? {
+          '--sw-bg': '#0b0b0b', '--sw-fg': '#f2f2f2', '--sw-muted': '#9a9a9a',
+          '--sw-faint': '#6b6b6b', '--sw-line': '#262626', '--sw-surface': '#151515',
+          '--sw-sale': '#ff5a6e', '--sw-stock': '#4ade80',
+        }
+      : {
+          '--sw-bg': '#ffffff', '--sw-fg': '#000000', '--sw-muted': '#767676',
+          '--sw-faint': '#a3a3a3', '--sw-line': '#e5e5e5', '--sw-surface': '#f7f7f7',
+          '--sw-sale': '#c8102e', '--sw-stock': '#1c7c3c',
+        };
+
+  // Set inline on <html> rather than as a <style> block: Vite injects the app's
+  // CSS when the module loads, which is *after* this runs, so a stylesheet rule
+  // of equal specificity would lose. An inline declaration always wins.
+  const root = document.documentElement;
+  for (const [key, value] of Object.entries(palette)) {
+    root.style.setProperty(key, value);
+  }
+  root.style.colorScheme = theme;
+  root.style.background = palette['--sw-bg'];
+}
+
+const theme = params.get('theme');
+if (theme === 'light' || theme === 'dark') forceTheme(theme);
+
+/**
+ * Abstract stand-in for a product photograph.
+ *
+ * The fixtures point at invented domains, so nothing loads. Rather than
+ * screenshotting a grid of "No image" boxes, the preview substitutes a soft
+ * neutral panel — enough to show how the layout breathes without pretending to
+ * be a real product shot.
+ */
+function placeholderImage(index: number): string {
+  const palettes = [
+    ['#efe9e3', '#cec5bb'],
+    ['#e7e9ea', '#c4cace'],
+    ['#f0eae9', '#d6c4c2'],
+    ['#eceee9', '#c8cfc2'],
+    ['#efece6', '#cfc3ae'],
+  ];
+  const [from, to] = palettes[index % palettes.length];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs>
+<rect width="300" height="400" fill="url(#g)"/>
+<circle cx="150" cy="158" r="66" fill="#ffffff" opacity="0.34"/>
+<rect x="96" y="240" width="108" height="104" fill="#ffffff" opacity="0.2"/></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 const FIXTURES: Record<string, { file: string; url: string; globals?: Record<string, unknown> }> = {
   'jsonld-apparel': {
     file: 'jsonld-apparel.html',
@@ -86,7 +148,20 @@ async function renderPopup(): Promise<void> {
     pageGlobals: fixture.globals ?? {},
   });
 
+  // Applied after detection so the pipeline's own URL handling is unaffected.
+  if (result.product) result.product.imageUrl = placeholderImage(0);
+
   installChrome(result, fixture.url);
+
+  // Signed in by default, since that is the state the popup is normally used
+  // in. Pass `?auth=out` to preview the sign-in panel instead.
+  if (params.get('auth') !== 'out') {
+    store['stockwatch:session'] = {
+      accessToken: 'preview',
+      refreshToken: 'preview',
+      email: 'shopper@example.com',
+    };
+  }
   console.info(`[preview] popup fixture "${selected}"`, result);
 
   document.getElementById('frame')?.setAttribute('data-mode', 'popup');
@@ -98,23 +173,40 @@ async function renderPopup(): Promise<void> {
 /** Canned API responses, shaped exactly like the FastAPI schemas. */
 function fakeBackend(): void {
   const products = [
-    product(1, 'Leather Effect Jacket', 'Zara', '12990.00', '15990.00', 'in_stock', [
-      ['S', 'in_stock', false],
-      ['M', 'out_of_stock', true],
-      ['L', 'out_of_stock', true],
-      ['XL', 'in_stock', false],
-    ]),
-    product(2, 'Roadster Men Blue Slim Fit Jeans', 'Myntra', '1149.00', '2299.00', 'in_stock', [
-      ['30', 'out_of_stock', true],
-      ['32', 'in_stock', false],
-      ['34', 'in_stock', false],
-    ]),
-    product(3, 'Velvet Matte Lipstick', 'Studio Beauty', '899.00', '1299.00', 'out_of_stock', [
-      ['Shade 01', 'in_stock', false],
-      ['Shade 03', 'out_of_stock', true],
-    ]),
-    product(4, 'Oversized Hoodie', 'H&M', '1999.00', '2999.00', 'in_stock', []),
-    product(5, 'Acme Studio Wireless Headphones', 'Amazon India', '8499.00', '12999.00', 'in_stock', []),
+    product(
+      1, 'Leather Effect Jacket', 'Zara', '12990.00', '15990.00', 'in_stock',
+      [
+        ['S', 'in_stock', false],
+        ['M', 'out_of_stock', true],
+        ['L', 'out_of_stock', true],
+        ['XL', 'in_stock', false],
+      ],
+      { checkedMinutesAgo: 6 },
+    ),
+    product(
+      2, 'Roadster Men Blue Slim Fit Jeans', 'Myntra', '1149.00', '2299.00', 'in_stock',
+      [
+        ['30', 'out_of_stock', true],
+        ['32', 'in_stock', false],
+        ['34', 'in_stock', false],
+      ],
+      { atLowest: true, checkedMinutesAgo: 21 },
+    ),
+    product(
+      3, 'Velvet Matte Lipstick', 'Studio Beauty', '899.00', '1299.00', 'out_of_stock',
+      [
+        ['Shade 01', 'in_stock', false],
+        ['Shade 03', 'out_of_stock', true],
+      ],
+      { checkedMinutesAgo: 34 },
+    ),
+    product(4, 'Oversized Hoodie', 'H&M', '1999.00', '2999.00', 'in_stock', [], {
+      checkedMinutesAgo: 95,
+    }),
+    product(5, 'Acme Studio Wireless Headphones', 'Amazon India', '8499.00', '12999.00', 'in_stock', [], {
+      atLowest: true,
+      checkedMinutesAgo: 48,
+    }),
   ];
 
   const notifications = [
@@ -223,27 +315,32 @@ function product(
   original: string,
   availability: string,
   variants: Array<[string, string, boolean]>,
+  options: { atLowest?: boolean; checkedMinutesAgo?: number } = {},
 ) {
   const current = Number.parseFloat(price);
   const was = Number.parseFloat(original);
+  // Only a product actually sitting at its record low earns the badge, so the
+  // fixture varies it rather than marking everything.
+  const lowest = options.atLowest ? current : Math.round(current * 0.88);
+  const checkedMinutesAgo = options.checkedMinutesAgo ?? 12;
   return {
     id,
     url: `https://example.com/p/${id}`,
     name,
     brand: null,
     category: null,
-    image_url: null,
+    image_url: placeholderImage(id - 1),
     store: storeName,
     store_slug: storeName.toLowerCase(),
     currency: 'INR',
     current_price: price,
     original_price: original,
-    lowest_price: price,
+    lowest_price: `${lowest}.00`,
     highest_price: original,
     average_price: original,
     discount_percentage: Math.round(((was - current) / was) * 100),
     availability,
-    last_checked_at: new Date(Date.now() - 12 * 60000).toISOString(),
+    last_checked_at: new Date(Date.now() - checkedMinutesAgo * 60000).toISOString(),
     last_check_status: 'ok',
     consecutive_failures: 0,
     tracking_enabled: id !== 4,
