@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+
+      # Proves the loadable artefact is complete, not just that the build exited 0.
+      - name: Verify build output
+        run: |
+          for file in dist/manifest.json dist/popup.html dist/dashboard.html \
+                      dist/content.js dist/background.js dist/icons/icon128.png; do
+            test -f "$file" || { echo "missing $file"; exit 1; }
+          done
+          echo "dist/ is loadable"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stockwatch-unpacked
+          path: extension/dist
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: pytest
+
+      # The migration is the only path production takes to a schema, so a green
+      # test suite on create_all() is not enough on its own.
+      - name: Migrations apply and roll back
+        env:
+          DATABASE_URL: sqlite+pysqlite:///./ci.db
+          SECRET_KEY: ci-secret
+          ENVIRONMENT: test
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head

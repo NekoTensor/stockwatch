@@ -1,0 +1,40 @@
+<!doctype html>
+<!--
+  Shape: a category listing. It has prices, images, an "Add to bag" button and a
+  breadcrumb — every individual signal a product page has. What it does not have
+  is ONE product, and the pipeline must refuse it rather than tracking whichever
+  item happened to sort first.
+-->
+<html lang="en">
+  <head>
+    <title>Women's Jackets | Shop the collection | Example Store</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Women's Jackets" />
+  </head>
+  <body>
+    <nav aria-label="Breadcrumb"><a href="/">Home</a> / <a href="/women">Women</a> / Jackets</nav>
+    <main>
+      <h1>Women's Jackets</h1>
+      <section class="product-grid">
+        <article class="card">
+          <img src="/img/a.jpg" alt="Denim jacket" />
+          <h2>Denim Jacket</h2>
+          <span class="price">₹3,499</span>
+          <button>Add to bag</button>
+        </article>
+        <article class="card">
+          <img src="/img/b.jpg" alt="Bomber jacket" />
+          <h2>Bomber Jacket</h2>
+          <span class="price">₹4,299</span>
+          <button>Add to bag</button>
+        </article>
+        <article class="card">
+          <img src="/img/c.jpg" alt="Puffer jacket" />
+          <h2>Puffer Jacket</h2>
+          <span class="price">₹5,999</span>
+          <button>Add to bag</button>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

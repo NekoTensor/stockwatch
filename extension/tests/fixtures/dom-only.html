@@ -1,0 +1,37 @@
+<!doctype html>
+<!--
+  Shape: an unknown boutique with NO structured data whatsoever. This is the
+  fixture that proves the "works on a store we have never seen" claim — the only
+  signals available are a heading, a struck-through MRP next to a sale price, a
+  row of shade swatches, and an Add to cart button.
+-->
+<html lang="en">
+  <head>
+    <title>Velvet Matte Lipstick - Rosewood | Studio Beauty</title>
+  </head>
+  <body>
+    <header><a href="/">Studio Beauty</a></header>
+    <main class="pdp">
+      <div class="pdp__gallery">
+        <img class="pdp__image" src="/img/lipstick-rosewood.jpg" alt="Velvet Matte Lipstick Rosewood" width="640" />
+      </div>
+      <div class="pdp__info">
+        <span class="pdp__brand">Studio Beauty</span>
+        <h1 class="pdp__title">Velvet Matte Lipstick</h1>
+        <div class="pdp__pricing">
+          <span class="pdp__price-final">₹899</span>
+          <span class="pdp__price-mrp">₹1,299</span>
+          <span class="pdp__save">31% off</span>
+        </div>
+        <div class="pdp__shades" data-testid="shade-selector">
+          <span class="shade-label">Shade</span>
+          <button class="shade" data-value="01">Shade 01</button>
+          <button class="shade" data-value="02">Shade 02</button>
+          <button class="shade shade--sold-out" data-value="03" disabled>Shade 03</button>
+          <button class="shade" data-value="04">Shade 04</button>
+        </div>
+        <button class="pdp__cta">Add to cart</button>
+      </div>
+    </main>
+  </body>
+</html>

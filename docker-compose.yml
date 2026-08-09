@@ -1,0 +1,79 @@
+name: stockwatch
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-stockwatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stockwatch}
+      POSTGRES_DB: ${POSTGRES_DB:-stockwatch}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      # Other services wait on this, so it has to mean "accepting queries",
+      # not merely "the process started".
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stockwatch} -d ${POSTGRES_DB:-stockwatch}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-stockwatch}:${POSTGRES_PASSWORD:-stockwatch}@db:5432/${POSTGRES_DB:-stockwatch}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports:
+      - "${API_PORT:-8000}:8000"
+    # Migrations run here rather than in an entrypoint script so that the
+    # schema is applied exactly once, by one container, before serving.
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-stockwatch}:${POSTGRES_PASSWORD:-stockwatch}@db:5432/${POSTGRES_DB:-stockwatch}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      api: { condition: service_started }
+    # Low concurrency on purpose: throughput here means requests to somebody
+    # else's shop, and the per-host throttle serialises them anyway.
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4
+
+  beat:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-stockwatch}:${POSTGRES_PASSWORD:-stockwatch}@db:5432/${POSTGRES_DB:-stockwatch}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis: { condition: service_healthy }
+      worker: { condition: service_started }
+    command: celery -A app.worker.celery_app beat --loglevel=info
+
+volumes:
+  postgres_data:
+  redis_data:

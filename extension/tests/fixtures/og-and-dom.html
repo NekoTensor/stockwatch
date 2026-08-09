@@ -1,0 +1,43 @@
+<!doctype html>
+<!--
+  Shape: no JSON-LD at all. OpenGraph carries the name/image/price, and the only
+  place stock lives is the rendered size widget — the exact case the DOM layer
+  exists for. Sizes here are <label> elements wrapping disabled radios, which is
+  how H&M-style widgets are usually built.
+-->
+<html lang="en">
+  <head>
+    <title>Oversized Hoodie - Beige | H&amp;M IN</title>
+    <meta property="og:type" content="product" />
+    <meta property="og:title" content="Oversized Hoodie" />
+    <meta property="og:description" content="Relaxed-fit hoodie in cotton-blend fabric." />
+    <meta property="og:image" content="https://image.hm.com/hoodie-main.jpg" />
+    <meta property="og:url" content="https://www2.hm.com/en_in/productpage.1234567001.html" />
+    <meta property="product:price:amount" content="1999.00" />
+    <meta property="product:price:currency" content="INR" />
+    <meta property="product:brand" content="H&amp;M" />
+    <meta property="product:availability" content="in stock" />
+  </head>
+  <body>
+    <nav class="main-nav"><a href="/sale">Sale from ₹499</a></nav>
+    <main>
+      <div class="product-detail">
+        <img class="product-gallery__image" src="/hoodie-main.jpg" alt="Oversized Hoodie beige" width="700" />
+        <h1 class="product-item-headline">Oversized Hoodie</h1>
+        <div class="price-container">
+          <span class="price-value">₹1,999</span>
+          <span class="price-original">₹2,999</span>
+        </div>
+        <fieldset class="sizes-list">
+          <legend>Select size</legend>
+          <label class="size-option"><input type="radio" name="size" value="XS" />XS</label>
+          <label class="size-option"><input type="radio" name="size" value="S" />S</label>
+          <label class="size-option is-disabled"><input type="radio" name="size" value="M" disabled />M</label>
+          <label class="size-option"><input type="radio" name="size" value="L" />L</label>
+          <label class="size-option is-disabled"><input type="radio" name="size" value="XL" disabled />XL</label>
+        </fieldset>
+        <button type="submit" class="js-add-to-cart">Add to bag</button>
+      </div>
+    </main>
+  </body>
+</html>

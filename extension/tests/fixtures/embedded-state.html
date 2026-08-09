@@ -1,0 +1,43 @@
+<!doctype html>
+<!--
+  Shape: single-page marketplace that renders client-side. The DOM at parse time
+  is nearly empty and the entire product lives in an embedded JSON blob under a
+  wrapper key nothing else would recognise ("pdpData" nested in Next.js props).
+  Nothing here is hard-coded in the detector: the blob is walked and scored.
+-->
+<html lang="en">
+  <head>
+    <title>Roadster Men Blue Slim Fit Jeans | Myntra</title>
+    <link rel="canonical" href="https://www.myntra.com/jeans/roadster/roadster-men-blue-jeans/2296012/buy" />
+    <script id="__NEXT_DATA__" type="application/json">
+      {
+        "props": {
+          "pageProps": {
+            "pdpData": {
+              "id": 2296012,
+              "name": "Roadster Men Blue Slim Fit Jeans",
+              "brand": { "name": "Roadster" },
+              "media": {
+                "albums": [
+                  { "images": [{ "src": "https://assets.myntassets.com/jeans-1.jpg" }] }
+                ]
+              },
+              "price": { "mrp": 2299, "discounted": 1149, "currency": "INR" },
+              "articleType": "Jeans",
+              "sizes": [
+                { "skuId": 9911, "label": "28", "availableCount": 4 },
+                { "skuId": 9912, "label": "30", "availableCount": 0 },
+                { "skuId": 9913, "label": "32", "availableCount": 7 },
+                { "skuId": 9914, "label": "34", "availableCount": 0 },
+                { "skuId": 9915, "label": "36", "availableCount": 2 }
+              ]
+            }
+          }
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="mountRoot"></div>
+  </body>
+</html>

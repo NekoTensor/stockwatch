@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>StockWatch — preview</title>
+    <style>
+      body {
+        width: auto !important;
+        margin: 0;
+      }
+      /* The popup is shown at its true 380px width inside a card so the real
+         proportions are visible; the dashboard fills the window. */
+      #frame[data-mode='popup'] {
+        width: 380px;
+        margin: 32px auto;
+        box-shadow: 0 10px 40px rgb(0 0 0 / 14%);
+        overflow: hidden;
+      }
+      #frame[data-mode='dashboard'] {
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="frame"><div id="root"></div></div>
+    <script type="module" src="/dev/preview.ts"></script>
+  </body>
+</html>

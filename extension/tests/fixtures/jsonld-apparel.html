@@ -1,0 +1,92 @@
+<!doctype html>
+<!--
+  Shape: fashion retailer that publishes a complete schema.org Product with one
+  Offer per size (Zara/H&M/Uniqlo style). The DOM deliberately disagrees on the
+  price (a discounted DOM price vs the JSON-LD list price) so the merge order
+  is exercised.
+-->
+<html lang="en">
+  <head>
+    <title>LEATHER EFFECT JACKET - Woman | ZARA India</title>
+    <link rel="canonical" href="https://www.zara.com/in/en/leather-effect-jacket-p07840321.html" />
+    <meta property="og:type" content="product" />
+    <meta property="og:title" content="LEATHER EFFECT JACKET | ZARA India" />
+    <meta property="og:image" content="https://static.zara.net/photos/jacket-og.jpg" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Leather Effect Jacket",
+        "description": "Collared jacket with long sleeves and front zip fastening.",
+        "brand": { "@type": "Brand", "name": "Zara" },
+        "sku": "07840321-800",
+        "productID": "07840321",
+        "category": "Woman / Outerwear / Jackets",
+        "url": "/in/en/leather-effect-jacket-p07840321.html",
+        "image": [
+          "https://static.zara.net/photos/jacket-1.jpg",
+          "https://static.zara.net/photos/jacket-2.jpg"
+        ],
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "S",
+            "sku": "07840321-800-S",
+            "price": "12990.00",
+            "priceCurrency": "INR",
+            "availability": "https://schema.org/InStock"
+          },
+          {
+            "@type": "Offer",
+            "name": "M",
+            "sku": "07840321-800-M",
+            "price": "12990.00",
+            "priceCurrency": "INR",
+            "availability": "https://schema.org/OutOfStock"
+          },
+          {
+            "@type": "Offer",
+            "name": "L",
+            "sku": "07840321-800-L",
+            "price": "12990.00",
+            "priceCurrency": "INR",
+            "availability": "https://schema.org/OutOfStock"
+          },
+          {
+            "@type": "Offer",
+            "name": "XL",
+            "sku": "07840321-800-XL",
+            "price": "12990.00",
+            "priceCurrency": "INR",
+            "availability": "https://schema.org/OutOfStock"
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <header class="site-header"><a href="/">ZARA</a><span class="cart-total">₹0.00</span></header>
+    <main class="product-detail">
+      <div class="product-detail-images">
+        <img class="media-image" src="/photos/jacket-1.jpg" alt="Leather Effect Jacket" width="800" />
+      </div>
+      <div class="product-detail-info">
+        <h1 class="product-detail-info__header-name">Leather Effect Jacket</h1>
+        <div class="price">
+          <span class="money-amount__main">₹12,990.00</span>
+        </div>
+        <div class="size-selector-sizes" aria-label="Select size">
+          <button class="size-selector-sizes-size__button" data-value="S">S</button>
+          <button class="size-selector-sizes-size__button is-disabled" data-value="M" disabled>M</button>
+          <button class="size-selector-sizes-size__button is-disabled" data-value="L" disabled>L</button>
+          <button class="size-selector-sizes-size__button is-disabled" data-value="XL" disabled>XL</button>
+        </div>
+        <button class="product-detail-cart__button">ADD TO BAG</button>
+      </div>
+    </main>
+    <section class="product-recommendations">
+      <h2>You may also like</h2>
+      <article><h3>Faux Leather Coat</h3><span class="price">₹7,590.00</span></article>
+    </section>
+  </body>
+</html>

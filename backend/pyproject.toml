@@ -1,0 +1,29 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "ARG", "BLE", "C4", "RET"]
+ignore = [
+    "ANN401",  # Any is sometimes exactly the right type for untyped page JSON
+    "B008",    # FastAPI's Depends() in defaults is the documented idiom
+    "SIM105",  # contextlib.suppress is not always clearer than try/except
+    "UP038",   # isinstance(x, (A, B)) is faster than the | form and reads fine
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "ARG", "E501"]
+"alembic/*" = ["ANN", "ARG", "E501", "I"]
+# Adapter hooks take (ctx, base) as part of the contract; most implementations
+# legitimately use only one of them, or neither.
+"app/adapters/*" = ["ARG002"]
+"app/detection/layers.py" = ["E501"]  # long regex alternations read worse wrapped
+# Inline-styled email HTML: mail clients need the styles on the element, and
+# breaking the attribute across lines makes it harder to read, not easier.
+"app/notifications/templates.py" = ["E501"]

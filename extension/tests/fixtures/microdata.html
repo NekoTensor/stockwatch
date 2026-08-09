@@ -1,0 +1,44 @@
+<!doctype html>
+<!--
+  Shape: an older storefront (Magento/WooCommerce lineage) with schema.org
+  expressed as microdata attributes rather than JSON-LD. Includes a nested
+  Review scope, which must NOT be mistaken for the product's own name.
+-->
+<html lang="en">
+  <head>
+    <title>Trail Running Shoes | Example Outdoors</title>
+  </head>
+  <body>
+    <main>
+      <div itemscope itemtype="https://schema.org/Product" class="product-detail">
+        <h1 itemprop="name">Kalenji Trail Running Shoes</h1>
+        <span itemprop="brand" itemscope itemtype="https://schema.org/Brand">
+          <meta itemprop="name" content="Kalenji" />
+        </span>
+        <img itemprop="image" src="/media/shoes-main.jpg" alt="Trail running shoes" width="600" />
+        <meta itemprop="sku" content="TRL-8845" />
+        <meta itemprop="category" content="Footwear / Running" />
+
+        <div itemprop="offers" itemscope itemtype="https://schema.org/Offer">
+          <meta itemprop="priceCurrency" content="EUR" />
+          <span itemprop="price" content="59.99">59,99 €</span>
+          <link itemprop="availability" href="https://schema.org/InStock" />
+        </div>
+
+        <div class="size-picker" data-testid="size-selector">
+          <button data-value="UK 7">UK 7</button>
+          <button data-value="UK 8">UK 8</button>
+          <button data-value="UK 9" aria-disabled="true">UK 9</button>
+          <button data-value="UK 10">UK 10</button>
+        </div>
+
+        <button class="btn-cart">Add to cart</button>
+
+        <div itemprop="review" itemscope itemtype="https://schema.org/Review">
+          <span itemprop="name">Best shoes I have owned</span>
+          <span itemprop="author">A. Runner</span>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

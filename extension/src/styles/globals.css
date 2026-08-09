@@ -1,0 +1,276 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Design language: editorial fashion retail.
+ *
+ * Borrowed from how Zara's own product pages read - white space doing the work,
+ * a single hairline instead of a border, uppercase wide-tracked labels against
+ * normal-case product names, and no rounded corners anywhere. Colour is
+ * reserved: black on white, one red for a reduced price, one green dot for
+ * in-stock. Everything else is grey.
+ */
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+
+    --sw-bg: #ffffff;
+    --sw-fg: #000000;
+    --sw-muted: #767676;
+    --sw-faint: #a3a3a3;
+    --sw-line: #e5e5e5;
+    --sw-surface: #f7f7f7;
+    --sw-sale: #c8102e;
+    --sw-stock: #1c7c3c;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --sw-bg: #0b0b0b;
+      --sw-fg: #f2f2f2;
+      --sw-muted: #9a9a9a;
+      --sw-faint: #6b6b6b;
+      --sw-line: #262626;
+      --sw-surface: #151515;
+      --sw-sale: #ff5a6e;
+      --sw-stock: #4ade80;
+    }
+  }
+
+  html,
+  body {
+    margin: 0;
+  }
+
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+    background: var(--sw-bg);
+    color: var(--sw-fg);
+    -webkit-font-smoothing: antialiased;
+    font-synthesis-weight: none;
+  }
+
+  /* The popup is a fixed 380px canvas; the dashboard is a full page. */
+  body.sw-popup {
+    width: 380px;
+    min-height: 200px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--sw-line);
+  }
+
+  ::selection {
+    background: var(--sw-fg);
+    color: var(--sw-bg);
+  }
+
+  /* Nothing in this design has a rounded corner, including form controls. */
+  input,
+  button,
+  select,
+  textarea {
+    border-radius: 0;
+    font: inherit;
+  }
+}
+
+@layer components {
+  /* The label voice: small, uppercase, widely tracked. Used for every piece of
+     chrome so that product names are the only normal-case text on screen. */
+  .sw-label {
+    @apply uppercase;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--sw-muted);
+    line-height: 1.4;
+  }
+
+  .sw-label-strong {
+    @apply uppercase;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--sw-fg);
+  }
+
+  .sw-rule {
+    border-top: 1px solid var(--sw-line);
+  }
+
+  /* Primary action: a solid black rectangle. */
+  .sw-button {
+    @apply inline-flex w-full items-center justify-center uppercase transition-opacity;
+    background: var(--sw-fg);
+    color: var(--sw-bg);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    padding: 14px 20px;
+  }
+  .sw-button:hover:not(:disabled) {
+    opacity: 0.82;
+  }
+  .sw-button:disabled {
+    background: var(--sw-line);
+    color: var(--sw-faint);
+    cursor: not-allowed;
+  }
+
+  .sw-button-ghost {
+    @apply inline-flex items-center justify-center uppercase transition-colors;
+    border: 1px solid var(--sw-line);
+    color: var(--sw-fg);
+    background: transparent;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    padding: 10px 16px;
+  }
+  .sw-button-ghost:hover:not(:disabled) {
+    border-color: var(--sw-fg);
+  }
+
+  /* Variant chip: a bordered square. Sold-out is struck through rather than
+     hidden, because a shopper needs to know the size exists at all. */
+  .sw-chip {
+    @apply flex items-center justify-center transition-colors;
+    border: 1px solid var(--sw-line);
+    min-height: 34px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--sw-fg);
+    background: transparent;
+  }
+  .sw-chip:hover:not(.sw-chip-selected) {
+    border-color: var(--sw-fg);
+  }
+  .sw-chip-selected {
+    border-color: var(--sw-fg);
+    background: var(--sw-fg);
+    color: var(--sw-bg);
+  }
+  .sw-chip-out {
+    color: var(--sw-faint);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+  .sw-chip-out.sw-chip-selected {
+    background: transparent;
+    color: var(--sw-fg);
+    border-color: var(--sw-fg);
+    border-style: dashed;
+  }
+
+  /* Square checkbox, drawn rather than native, to match the hairline weight. */
+  .sw-check {
+    @apply flex shrink-0 items-center justify-center transition-colors;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--sw-fg);
+    background: transparent;
+  }
+  .sw-check-on {
+    background: var(--sw-fg);
+    color: var(--sw-bg);
+  }
+
+  .sw-input {
+    @apply w-full bg-transparent outline-none transition-colors;
+    border: 0;
+    border-bottom: 1px solid var(--sw-line);
+    padding: 8px 0;
+    font-size: 13px;
+    color: var(--sw-fg);
+  }
+  .sw-input:focus {
+    border-bottom-color: var(--sw-fg);
+  }
+  .sw-input::placeholder {
+    color: var(--sw-faint);
+  }
+
+  .sw-price {
+    font-size: 14px;
+    letter-spacing: 0.01em;
+  }
+  .sw-price-was {
+    font-size: 12px;
+    color: var(--sw-faint);
+    text-decoration: line-through;
+  }
+  .sw-price-sale {
+    color: var(--sw-sale);
+  }
+
+  /* Nav item for the dashboard: underline on the active one only. */
+  .sw-nav {
+    @apply uppercase transition-colors;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--sw-muted);
+    padding-bottom: 3px;
+    border-bottom: 1px solid transparent;
+  }
+  .sw-nav:hover {
+    color: var(--sw-fg);
+  }
+  .sw-nav-active {
+    color: var(--sw-fg);
+    border-bottom-color: var(--sw-fg);
+  }
+}
+
+@layer utilities {
+  .sw-fade {
+    animation: sw-fade 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .sw-skeleton {
+    background: var(--sw-surface);
+    position: relative;
+    overflow: hidden;
+  }
+  .sw-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgb(0 0 0 / 4%), transparent);
+    animation: sw-sweep 1.5s ease-in-out infinite;
+  }
+  @media (prefers-color-scheme: dark) {
+    .sw-skeleton::after {
+      background: linear-gradient(90deg, transparent, rgb(255 255 255 / 5%), transparent);
+    }
+  }
+}
+
+@keyframes sw-fade {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sw-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-fade,
+  .sw-skeleton::after {
+    animation: none;
+  }
+}

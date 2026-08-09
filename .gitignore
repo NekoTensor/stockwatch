@@ -1,0 +1,31 @@
+node_modules/
+dist/
+build/
+*.zip
+
+# python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.db
+htmlcov/
+.coverage
+
+# generated at build time from scripts/generate-icons.mjs
+extension/public/icons/
+
+.env
+.env.local
+
+# local editor/agent tooling, not part of the project
+.claude/
+
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+.vscode/
+.idea/
+coverage/

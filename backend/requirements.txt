@@ -1,0 +1,27 @@
+# --- web ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+email-validator==2.2.0
+
+# --- persistence ---
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+
+# --- auth ---
+PyJWT==2.10.1
+bcrypt==4.2.1
+
+# --- monitoring / extraction ---
+httpx==0.28.1
+beautifulsoup4==4.12.3
+lxml==5.3.0
+
+# --- background work ---
+celery[redis]==5.4.0
+redis==5.2.1
+
+# --- email ---
+resend==2.5.1
