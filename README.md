@@ -28,35 +28,18 @@ browser notification and email.
 
 Every restock tracker asks you to paste a URL and pick your store from a
 dropdown, then works on nine sites. StockWatch inverts that: you are already
-looking at the product, so the extension reads *the page you are on* — and the
+looking at the product, so the extension reads *the page you are on*, and the
 engine that reads it does not know the name of a single store.
 
-```
-  You open any product page
-            │
-     Click StockWatch                        ┌─ browser ─────────────┐
-            │                                │ detect · preview ·    │
-  ┌─────────▼──────────┐                     │ choose sizes · track  │
-  │ six extraction     │                     └───────────┬───────────┘
-  │ layers, merged     │                                 │
-  │ field-by-field     │                     ┌───────────▼───────────┐
-  └─────────┬──────────┘                     │ FastAPI + PostgreSQL  │
-            │                                └───────────┬───────────┘
-   normalised ProductData ────────────────►               │
-                                            ┌────────────▼──────────┐
-                                            │ Celery workers poll   │
-                                            │ change detection      │
-                                            │ notification engine   │
-                                            └────────────┬──────────┘
-                                                         │
-                                          browser notification · email
-```
+<img src="docs/assets/Working.png">
+
+
 
 ## What it does
 
 | | |
 |---|---|
-| **Detects** | Name, brand, price, MRP, discount, image, SKU, category, currency, and **per-size stock** — on any store, from structured data down to DOM heuristics |
+| **Detects** | Name, brand, price, MRP, discount, image, SKU, category, currency, and **per-size stock** on any store, from structured data down to DOM heuristics |
 | **Tracks** | Variant-level. You watch *your* size, not the product |
 | **Monitors** | Server-side on a polite schedule, with retries, exponential backoff, per-host throttling and robots.txt |
 | **Remembers** | Every price observation, so lowest / highest / average / 7-day / 30-day are real numbers |
@@ -65,7 +48,7 @@ engine that reads it does not know the name of a single store.
 
 ## Why it works on stores nobody wrote code for
 
-Six layers run on every page, merged **field by field** by trust — not one
+Six layers run on every page, merged **field by field** by trust and not one
 winner per page.
 
 | # | Layer | Reads | Why it earns its place |
@@ -146,13 +129,13 @@ Requires Docker, Node 18+, and a Chromium browser.
 git clone https://github.com/NekoTensor/stockwatch.git && cd stockwatch
 ```
 
-**1 — backend**
+**backend**
 
 ```bash
 cp .env.example .env && docker compose up --build -d
 ```
 
-**2 — extension**
+**extension**
 
 ```bash
 cd extension && npm install && npm run build
