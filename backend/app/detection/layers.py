@@ -245,6 +245,15 @@ def _types_of(node: dict[str, Any]) -> list[str]:
 
 
 def _flatten_jsonld(root: Any, depth: int = 0, out: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """Flatten containers into a list of candidate products.
+
+    `hasVariant` and `isVariantOf` are deliberately not descended into. They are
+    parts of a product, not products: H&M publishes a ProductGroup whose
+    `hasVariant` holds every colour x size combination, each a `@type: Product`
+    with a name, an image and an offer. Those leaves outscore the group that
+    owns them, and the page then gets described by one arbitrary size of one
+    arbitrary colour - with no size list, because a leaf has no variants.
+    """
     out = out if out is not None else []
     if depth > 6:
         return out
@@ -256,10 +265,68 @@ def _flatten_jsonld(root: Any, depth: int = 0, out: list[dict[str, Any]] | None 
         return out
 
     out.append(root)
-    for key in ("@graph", "mainEntity", "itemListElement", "hasVariant", "isVariantOf", "item"):
+    for key in ("@graph", "mainEntity", "itemListElement", "item"):
         if key in root:
             _flatten_jsonld(root[key], depth + 1, out)
     return out
+
+
+def _variant_url(item: dict[str, Any]) -> str | None:
+    """The URL a variant belongs to - often only present on its offer."""
+    direct = as_string(pick(item, ("url", "@id")))
+    if direct:
+        return direct
+    for offer in _collect_offers(item):
+        url = as_string(pick(offer, ("url",)))
+        if url:
+            return url
+    return None
+
+
+def _same_path(a: str | None, b: str) -> bool:
+    if not a:
+        return False
+
+    def path(value: str) -> str:
+        return re.sub(r"[?#].*$", "", re.sub(r"^https?://[^/]+", "", value, flags=re.I)).lower()
+
+    return path(a) == path(b)
+
+
+def _variants_for_this_page(node: dict[str, Any], url: str) -> list[dict[str, Any]]:
+    """Narrow a ProductGroup's variants to the colourway this URL points at.
+
+    A colourway has its own page, its own stock and sometimes its own price.
+    Unfiltered, a size sold out in navy makes the same size look sold out in
+    beige, and the cheapest colour sets the price for all of them.
+    """
+    raw = node.get("hasVariant")
+    if not isinstance(raw, list):
+        return []
+
+    items = [item for item in raw if isinstance(item, dict)]
+    matching = [item for item in items if _same_path(_variant_url(item), url)]
+    return matching or items
+
+
+def _category_from_breadcrumbs(blocks: list[Any]) -> str | None:
+    for block in blocks:
+        for node in _flatten_jsonld(block):
+            if not any(re.search(r"BreadcrumbList$", t, re.I) for t in _types_of(node)):
+                continue
+            items = node.get("itemListElement")
+            if not isinstance(items, list) or len(items) < 2:
+                continue
+            # The last crumb is the product; the one before it is its section.
+            crumb = items[-2]
+            if not isinstance(crumb, dict):
+                continue
+            name = as_string(pick(crumb, ("name",)))
+            if not name and isinstance(crumb.get("item"), dict):
+                name = as_string(pick(crumb["item"], ("name",)))
+            if name:
+                return name
+    return None
 
 
 def _collect_offers(node: dict[str, Any]) -> list[dict[str, Any]]:
@@ -301,17 +368,21 @@ def _offer_price(offer: dict[str, Any]) -> Decimal | None:
 def extract_jsonld(ctx: PageContext) -> Candidate | None:
     """schema.org Product in a JSON-LD script. The highest-trust layer."""
     products: list[dict[str, Any]] = []
+    parsed_blocks: list[Any] = []
 
     for script in ctx.soup.find_all("script", attrs={"type": re.compile(r"ld\+json|json\+ld", re.I)}):
         parsed = safe_json_loads(script.string or script.get_text())
         if parsed is None:
             continue
+        parsed_blocks.append(parsed)
         for node in _flatten_jsonld(parsed):
             if any(_PRODUCT_TYPES.search(t) for t in _types_of(node)):
                 products.append(node)
 
     if not products:
         return None
+
+    breadcrumb_category = _category_from_breadcrumbs(parsed_blocks)
 
     def score(node: dict[str, Any]) -> int:
         value = 0
@@ -325,7 +396,11 @@ def extract_jsonld(ctx: PageContext) -> Candidate | None:
             value += 1
         if "brand" in node:
             value += 1
+        # A ProductGroup is the canonical description of the page: it owns the
+        # name, the brand and every variant. Rank it above any single Product.
         if isinstance(node.get("hasVariant"), list):
+            value += 6
+        if any(re.search(r"ProductGroup$", t, re.I) for t in _types_of(node)):
             value += 2
         node_url = as_string(pick(node, ("url", "@id")))
         if node_url and re.sub(r"^https?://[^/]+", "", node_url) in ctx.url:
@@ -333,7 +408,15 @@ def extract_jsonld(ctx: PageContext) -> Candidate | None:
         return value
 
     node = max(products, key=score)
-    offers = _collect_offers(node)
+
+    # For a ProductGroup, everything below is scoped to the colourway this URL
+    # points at - its offers, its stock, its sizes.
+    page_variants = _variants_for_this_page(node, ctx.url)
+    offers = (
+        [offer for item in page_variants for offer in _collect_offers(item)]
+        if page_variants
+        else _collect_offers(node)
+    )
 
     prices = [price for price in (_offer_price(offer) for offer in offers) if price is not None]
     current_price = min(prices) if prices else None
@@ -358,8 +441,13 @@ def extract_jsonld(ctx: PageContext) -> Candidate | None:
     else:
         availability = StockStatus.UNKNOWN
 
-    variants = _variants_from_group(node) or _variants_from_offers(offers)
-    images = as_image_list(node.get("image"))[:8]
+    variants = _variants_from_group(page_variants) or _variants_from_offers(offers)
+
+    # A ProductGroup often carries no image of its own; its variants do.
+    images = as_image_list(node.get("image"))
+    if not images:
+        images = [url for item in page_variants for url in as_image_list(item.get("image"))]
+    images = images[:8]
 
     return Candidate(
         source="jsonld",
@@ -368,8 +456,8 @@ def extract_jsonld(ctx: PageContext) -> Candidate | None:
             "brand": as_string(pick(node, ("brand", "manufacturer"))),
             "description": as_string(pick(node, ("description",))),
             "sku": as_string(pick(node, ("sku", "mpn"))),
-            "product_id": as_string(pick(node, ("productID", "productId", "gtin13", "gtin", "sku"))),
-            "category": as_string(pick(node, ("category",))),
+            "product_id": as_string(pick(node, ("productID", "productId", "productGroupID", "gtin13", "gtin", "sku"))),
+            "category": as_string(pick(node, ("category",))) or breadcrumb_category,
             "image_url": images[0] if images else None,
             "images": images,
             "currency": currency.upper() if currency else None,
@@ -414,28 +502,59 @@ def _variants_from_offers(offers: list[dict[str, Any]]) -> list[VariantSnapshot]
     return variants if short >= len(variants) / 2 else []
 
 
-def _variants_from_group(node: dict[str, Any]) -> list[VariantSnapshot]:
-    """ProductGroup -> hasVariant -> Product[] is the explicit modern encoding."""
-    raw = node.get("hasVariant")
-    if not isinstance(raw, list):
+def _variants_from_group(items: list[dict[str, Any]]) -> list[VariantSnapshot]:
+    """ProductGroup -> hasVariant -> Product[] is the explicit modern encoding.
+
+    `items` has already been narrowed to the current page, so the axis that
+    remains is the one the shopper still has to choose - size, on a page where
+    the colour is fixed by the URL.
+    """
+    if not items:
         return []
 
+    # Pick the axis that actually varies within this page.
+    axis_key: str | None = None
+    for key in ("size", "color", "colour", "pattern", "material"):
+        values = {as_string(item.get(key)) for item in items if as_string(item.get(key))}
+        if len(values) > 1:
+            axis_key = key
+            break
+
     variants: list[VariantSnapshot] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        axis = as_string(pick(item, ("size", "color", "colour", "pattern", "material"))) or as_string(
-            pick(item, ("name",))
-        )
+    seen: set[str] = set()
+
+    for item in items:
+        axis = (as_string(item.get(axis_key)) if axis_key else None) or as_string(
+            pick(item, ("size", "color", "colour"))
+        ) or as_string(pick(item, ("name",)))
         if not axis:
             continue
+
+        key = normalise_key(axis)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+
+        if axis_key == "size" or (axis_key is None and "size" in item):
+            variant_type = VariantType.SIZE
+        elif axis_key in {"color", "colour"}:
+            variant_type = VariantType.COLOR
+        elif _VARIANT_TOKEN.match(axis):
+            variant_type = VariantType.SIZE
+        else:
+            variant_type = VariantType.GENERIC
+
         offers = _collect_offers(item)
         variants.append(
             VariantSnapshot(
                 id=as_string(pick(item, ("sku", "productID", "@id"))) or axis,
                 name=axis,
-                type=VariantType.SIZE if "size" in item else VariantType.COLOR if "color" in item else VariantType.GENERIC,
-                availability=avail.from_schema(as_string(pick(offers[0], ("availability",)))) if offers else StockStatus.UNKNOWN,
+                type=variant_type,
+                availability=(
+                    avail.from_schema(as_string(pick(offers[0], ("availability",))))
+                    if offers
+                    else StockStatus.UNKNOWN
+                ),
                 sku=as_string(pick(item, ("sku",))),
                 price=_offer_price(offers[0]) if offers else None,
                 source="jsonld",
@@ -822,21 +941,40 @@ _TITLE_SELECTORS = [
 ]
 
 
-def _product_scope(soup: BeautifulSoup) -> Tag:
-    for selector in (
-        "[class*=product-detail]",
-        "[class*=productDetail]",
-        "[id*=product-detail]",
-        "[class*=pdp]",
-        "[id*=pdp]",
-        "[data-testid*=product]",
-        "main",
-        "article",
-    ):
-        for tag in soup.select(selector):
-            if len(_text_of(tag)) > 40:
-                return tag
-    return soup.body or soup
+_SCOPE_SELECTORS = (
+    "[class*=product-detail]",
+    "[class*=productDetail]",
+    "[id*=product-detail]",
+    "[class*=pdp]",
+    "[id*=pdp]",
+    "[data-testid*=product]",
+    "main",
+    "article",
+)
+
+
+def _product_scope(soup: BeautifulSoup, title_tag: Tag | None) -> Tag:
+    """The subtree most likely to be the product detail area.
+
+    A scope is only accepted if it contains the product's own heading. Taking
+    the first selector match without that check is how H&M ended up scoped to a
+    <section id="...pdp..."> holding neither the title, the price nor the size
+    grid, leaving every downstream heuristic with nothing to find.
+
+    Where several candidates qualify the largest wins: scoping only skips
+    obviously unrelated markup, and excluding *other* products is the job of
+    `_in_noise_region`, applied per element.
+    """
+    candidates = [
+        tag for selector in _SCOPE_SELECTORS for tag in soup.select(selector) if len(_text_of(tag)) > 40
+    ]
+
+    if title_tag is not None:
+        containing = [tag for tag in candidates if tag is not title_tag and title_tag in tag.descendants]
+        if containing:
+            return max(containing, key=lambda tag: len(_text_of(tag)))
+
+    return soup.find("main") or soup.find("article") or soup.body or soup
 
 
 def _find_title(soup: BeautifulSoup) -> Tag | None:
@@ -921,8 +1059,11 @@ def _looks_like_listing_grid(soup: BeautifulSoup) -> bool:
 
 def extract_dom(ctx: PageContext) -> tuple[Candidate, DomSignals]:
     soup = ctx.soup
-    scope = _product_scope(soup)
+    # The title is found across the whole document, then used to validate the
+    # scope - a product area that does not contain the product's name is not
+    # the product area.
     title_tag = _find_title(soup)
+    scope = _product_scope(soup, title_tag)
     name = _text_of(title_tag) if title_tag else None
 
     # --- prices
@@ -1030,21 +1171,97 @@ def extract_dom(ctx: PageContext) -> tuple[Candidate, DomSignals]:
     )
 
 
+_STATE_OUT = re.compile(r"out[-_\s]?of[-_\s]?stock|sold[-_\s]?out|unavailable|notify", re.I)
+_STATE_IN = re.compile(r"\bin[-_\s]?stock\b|\bavailable\b", re.I)
+
+
+def _control_availability(tag: Tag) -> StockStatus:
+    """Availability of a single variant control in the DOM.
+
+    Distinct from `_variant_availability`, which reads the same question off a
+    JSON object rather than an element.
+
+    State is frequently carried by an attribute rather than by looks, and often
+    on a *child* of the control: H&M writes `aria-label="Size XL: Sold out."`
+    and `data-testid="014-out-of-stock"` on the cell inside the button.
+    """
+    if _is_disabled_like(tag):
+        return StockStatus.OUT_OF_STOCK
+
+    parts = [
+        str(tag.get("aria-label") or ""),
+        str(tag.get("title") or ""),
+        str(tag.get("data-testid") or ""),
+    ]
+    for child in tag.find_all(attrs={"aria-label": True}, limit=4):
+        parts.append(str(child.get("aria-label") or ""))
+    for child in tag.find_all(attrs={"data-testid": True}, limit=4):
+        parts.append(str(child.get("data-testid") or ""))
+    descriptors = " ".join(parts)
+
+    if _STATE_OUT.search(descriptors):
+        return StockStatus.OUT_OF_STOCK
+    if avail.from_text(_text_of(tag)) is StockStatus.OUT_OF_STOCK:
+        return StockStatus.OUT_OF_STOCK
+    if _STATE_IN.search(descriptors):
+        return StockStatus.IN_STOCK
+
+    # A control that is present and not switched off is buyable. That is a
+    # positive statement about *this* control, not about the whole product.
+    return StockStatus.IN_STOCK
+
+
+def _unwrap_control(tag: Tag, label: str) -> Tag:
+    """Walk out of wrappers that contribute nothing but styling.
+
+    `<div class="hashed"><div>M</div></div>` - the inner div holds the text, the
+    outer one holds the class saying whether M is available and sits beside its
+    fellow sizes. The outer one is the control.
+    """
+    node = tag
+    for _ in range(3):
+        parent = node.parent
+        if not isinstance(parent, Tag):
+            break
+        if len([child for child in parent.find_all(recursive=False) if isinstance(child, Tag)]) != 1:
+            break
+        if clean(_text_of(parent)) != label:
+            break
+        node = parent
+    return node
+
+
 def _dom_variants(scope: Tag) -> list[VariantSnapshot]:
     groups: dict[int, tuple[Tag, list[Tag]]] = {}
+    claimed: set[int] = set()
 
-    for tag in scope.find_all(["button", "label", "li", "a", "div", "span", "option"], limit=1500):
-        if tag.name in {"a", "div", "span"} and not tag.has_attr("data-value"):
-            continue
+    for tag in scope.find_all(["button", "label", "li", "a", "div", "span", "option"], limit=6000):
         if _in_noise_region(tag):
             continue
         label = clean(_accessible_label(tag))
         if not label or len(label) > 24:
             continue
-        parent = tag.parent
+
+        # Plain containers only count as controls when they are a leaf whose
+        # entire text *is* a variant token. Modern storefronts build size
+        # pickers from bare <div>s with hashed class names and no data
+        # attributes, so requiring `data-value` missed them - but accepting any
+        # short-texted div would sweep up half the page.
+        is_plain = tag.name in {"a", "div", "span"}
+        if is_plain and not tag.has_attr("data-value"):
+            has_element_child = any(isinstance(child, Tag) for child in tag.find_all(recursive=False))
+            if has_element_child or not _VARIANT_TOKEN.match(label):
+                continue
+
+        control = _unwrap_control(tag, label) if is_plain else tag
+        if id(control) in claimed:
+            continue
+        claimed.add(id(control))
+
+        parent = control.parent
         if not isinstance(parent, Tag):
             continue
-        groups.setdefault(id(parent), (parent, []))[1].append(tag)
+        groups.setdefault(id(parent), (parent, []))[1].append(control)
 
     best: tuple[int, list[VariantSnapshot]] | None = None
 
@@ -1076,7 +1293,7 @@ def _dom_variants(scope: Tag) -> list[VariantSnapshot]:
                     id=str(tag.get("data-value") or tag.get("value") or tag.get("id") or name),
                     name=name,
                     type=_variant_type(container_attrs, name),
-                    availability=StockStatus.OUT_OF_STOCK if _is_disabled_like(tag) else StockStatus.IN_STOCK,
+                    availability=_control_availability(tag),
                     source="dom",
                 )
             )

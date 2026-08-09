@@ -1,6 +1,8 @@
 /** Shared primitives. Deliberately few: the design language is mostly whitespace. */
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+
+import { THEME_LABEL, THEMES, getTheme, nextTheme, setTheme, type Theme } from '../../lib/theme';
 
 export function Wordmark({ className = '' }: { className?: string }) {
   return (
@@ -101,6 +103,56 @@ export function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * Theme control.
+ *
+ * `segmented` shows all three states at once and is used where there is room;
+ * `cycle` is a single button that steps through them, for the popup footer
+ * where a three-word control would crowd out the account row.
+ */
+export function ThemeToggle({ variant = 'cycle' }: { variant?: 'cycle' | 'segmented' }) {
+  const [theme, setLocal] = useState<Theme>('system');
+
+  useEffect(() => {
+    void getTheme().then(setLocal);
+  }, []);
+
+  const choose = (next: Theme) => {
+    setLocal(next);
+    void setTheme(next);
+  };
+
+  if (variant === 'segmented') {
+    return (
+      <div className="flex items-center gap-3" role="group" aria-label="Theme">
+        {THEMES.map((option) => (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={theme === option}
+            onClick={() => choose(option)}
+            className={`sw-nav ${theme === option ? 'sw-nav-active' : ''}`}
+          >
+            {THEME_LABEL[option]}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => choose(nextTheme(theme))}
+      title={`Theme: ${THEME_LABEL[theme]} — click to change`}
+      aria-label={`Theme: ${THEME_LABEL[theme]}. Click to change.`}
+      className="sw-label transition-colors hover:opacity-70"
+    >
+      {THEME_LABEL[theme]}
+    </button>
   );
 }
 

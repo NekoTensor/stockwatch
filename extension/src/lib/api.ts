@@ -162,18 +162,62 @@ async function request<T>(
 
 // ------------------------------------------------------------------ auth ----
 
-export async function register(email: string, password: string): Promise<Session> {
+/**
+ * FastAPI returns validation failures as a list of objects, not a string.
+ * Surfacing "[object Object]" — or a flat "Something went wrong" — hides the
+ * one thing the user needs, which is *which field* it disliked.
+ */
+function describeDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === 'string' && detail.trim()) return detail;
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((entry) => {
+        if (typeof entry === 'string') return entry;
+        const item = entry as { loc?: unknown[]; msg?: string } | null;
+        if (!item?.msg) return undefined;
+        const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : undefined;
+        const label = typeof field === 'string' && field !== 'body' ? `${field}: ` : '';
+        return `${label}${item.msg.replace(/^Value error,\s*/i, '')}`;
+      })
+      .filter(Boolean);
+    if (messages.length) return messages.join(' ');
+  }
+
+  return fallback;
+}
+
+/**
+ * Sign-in and registration bypass `request()` because they must not attach or
+ * refresh a token. They still need its error handling: without it a backend
+ * that simply is not running surfaces as a bare "Something went wrong", which
+ * sends people hunting for a bug in their password.
+ */
+async function authenticate(path: string, email: string, password: string, fallback: string): Promise<Session> {
   const { baseUrl } = await getSettings();
-  const response = await fetch(`${baseUrl}/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (error) {
+    throw new ApiError(
+      `Could not reach StockWatch at ${baseUrl}. Start the backend, or change the server address below.`,
+      0,
+      (error as Error).message,
+    );
+  }
 
   const body = await response.json().catch(() => undefined);
+
   if (!response.ok) {
-    const detail = (body as { detail?: unknown } | undefined)?.detail;
-    throw new ApiError(typeof detail === 'string' ? detail : 'Could not create the account.', response.status);
+    throw new ApiError(
+      describeDetail((body as { detail?: unknown } | undefined)?.detail, fallback),
+      response.status,
+    );
   }
 
   const tokens = body as TokenPair;
@@ -182,24 +226,12 @@ export async function register(email: string, password: string): Promise<Session
   return session;
 }
 
-export async function login(email: string, password: string): Promise<Session> {
-  const { baseUrl } = await getSettings();
-  const response = await fetch(`${baseUrl}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
+export function register(email: string, password: string): Promise<Session> {
+  return authenticate('/auth/register', email, password, 'Could not create the account.');
+}
 
-  const body = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    const detail = (body as { detail?: unknown } | undefined)?.detail;
-    throw new ApiError(typeof detail === 'string' ? detail : 'Incorrect email or password.', response.status);
-  }
-
-  const tokens = body as TokenPair;
-  const session: Session = { accessToken: tokens.access_token, refreshToken: tokens.refresh_token, email };
-  await saveSession(session);
-  return session;
+export function login(email: string, password: string): Promise<Session> {
+  return authenticate('/auth/login', email, password, 'Incorrect email or password.');
 }
 
 export async function logout(): Promise<void> {

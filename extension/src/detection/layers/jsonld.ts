@@ -28,7 +28,17 @@ function isProductNode(node: unknown): node is Record<string, unknown> {
   return isObject(node) && typesOf(node).some((type) => PRODUCT_TYPES.test(type));
 }
 
-/** Flatten @graph, arrays and nested product references into one list. */
+/**
+ * Flatten containers into a list of candidate products.
+ *
+ * `hasVariant` and `isVariantOf` are deliberately *not* descended into. They
+ * are parts of a product, not products in their own right, and promoting them
+ * is actively harmful: H&M publishes a ProductGroup whose `hasVariant` holds
+ * every colour x size combination, each a `@type: Product` carrying a name, an
+ * image and an offer. Those leaves score higher than the group that owns them,
+ * so the page ends up described by one arbitrary size of one arbitrary colour —
+ * with no size list at all, because a leaf has no variants of its own.
+ */
 function flatten(root: unknown, depth = 0, out: Array<Record<string, unknown>> = []): Array<Record<string, unknown>> {
   if (depth > 6) return out;
 
@@ -40,11 +50,49 @@ function flatten(root: unknown, depth = 0, out: Array<Record<string, unknown>> =
 
   out.push(root);
 
-  for (const key of ['@graph', 'mainEntity', 'itemListElement', 'hasVariant', 'isVariantOf', 'item']) {
+  for (const key of ['@graph', 'mainEntity', 'itemListElement', 'item']) {
     if (root[key] !== undefined) flatten(root[key], depth + 1, out);
   }
 
   return out;
+}
+
+/** The URL a variant belongs to — often only present on its offer. */
+function variantUrl(item: Record<string, unknown>): string | undefined {
+  const direct = asString(pick(item, ['url', '@id']));
+  if (direct) return direct;
+  for (const offer of collectOffers(item)) {
+    const url = asString(pick(offer, ['url']));
+    if (url) return url;
+  }
+  return undefined;
+}
+
+function samePath(a: string | undefined, b: string): boolean {
+  if (!a) return false;
+  const path = (value: string) => value.replace(/^https?:\/\/[^/]+/i, '').replace(/[?#].*$/, '').toLowerCase();
+  return path(a) === path(b);
+}
+
+/**
+ * Narrow a ProductGroup's variants to the one page we are actually on.
+ *
+ * A colourway has its own URL, its own stock and sometimes its own price. Left
+ * unfiltered, a size that is sold out in navy makes the same size look sold out
+ * in beige, and the cheapest colour sets the price for all of them.
+ *
+ * If no variant names a URL, the group is single-page and everything is kept.
+ */
+function variantsForThisPage(
+  node: Record<string, unknown>,
+  url: string,
+): Array<Record<string, unknown>> {
+  const raw = node.hasVariant;
+  if (!Array.isArray(raw)) return [];
+
+  const items = raw.filter(isObject);
+  const matching = items.filter((item) => samePath(variantUrl(item), url));
+  return matching.length ? matching : items;
 }
 
 /** Offers arrive as one Offer, an array of Offers, or an AggregateOffer. */
@@ -154,25 +202,48 @@ function variantsFromOffers(offers: Array<Record<string, unknown>>): Variant[] {
   return looksLikeLabels ? variants : [];
 }
 
-/** ProductGroup → hasVariant → Product[] is the modern, explicit encoding. */
-function variantsFromGroup(node: Record<string, unknown>): Variant[] {
-  const raw = node.hasVariant;
-  if (!Array.isArray(raw)) return [];
+/**
+ * ProductGroup → hasVariant → Product[] is the modern, explicit encoding.
+ *
+ * `items` has already been narrowed to the current page, so the axis that
+ * remains is the one the shopper still has to choose — size, on a page where
+ * the colour is fixed by the URL.
+ */
+function variantsFromGroup(items: Array<Record<string, unknown>>): Variant[] {
+  if (!items.length) return [];
+
+  // Pick the axis that actually varies within this page.
+  const axisKey = ['size', 'color', 'colour', 'pattern', 'material'].find((key) => {
+    const values = new Set(items.map((item) => asString(item[key])).filter(Boolean));
+    return values.size > 1;
+  });
 
   const variants: Variant[] = [];
-  for (const item of raw) {
-    if (!isObject(item)) continue;
+  const seen = new Set<string>();
 
+  for (const item of items) {
     const axis =
-      asString(pick(item, ['size', 'color', 'colour', 'pattern', 'material'])) ??
+      (axisKey ? asString(item[axisKey]) : undefined) ??
+      asString(pick(item, ['size', 'color', 'colour'])) ??
       asString(pick(item, ['name']));
     if (!axis) continue;
+
+    const key = normaliseKey(axis);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
 
     const offers = collectOffers(item);
     variants.push({
       id: asString(pick(item, ['sku', 'productID', '@id'])) ?? axis,
       name: axis,
-      type: item.size !== undefined ? 'size' : item.color !== undefined ? 'color' : 'generic',
+      type:
+        axisKey === 'size' || (!axisKey && item.size !== undefined)
+          ? 'size'
+          : axisKey === 'color' || axisKey === 'colour'
+            ? 'color'
+            : VARIANT_TOKEN.test(axis)
+              ? 'size'
+              : 'generic',
       availability: offers.length
         ? availabilityFromSchema(asString(pick(offers[0], ['availability'])))
         : 'unknown',
@@ -181,7 +252,29 @@ function variantsFromGroup(node: Record<string, unknown>): Variant[] {
       source: 'jsonld',
     });
   }
+
   return variants;
+}
+
+/** The category from a BreadcrumbList, which is cleaner than any DOM guess. */
+function categoryFromBreadcrumbs(blocks: unknown[]): string | undefined {
+  for (const block of blocks) {
+    for (const node of flatten(block)) {
+      const types = typesOf(node);
+      if (!types.some((type) => /BreadcrumbList$/i.test(type))) continue;
+
+      const items = node.itemListElement;
+      if (!Array.isArray(items) || items.length < 2) continue;
+
+      // The last crumb is the product itself; the one before it is its section.
+      const crumb = items[items.length - 2];
+      const name = isObject(crumb)
+        ? (asString(pick(crumb, ['name'])) ?? asString(isObject(crumb.item) ? pick(crumb.item, ['name']) : undefined))
+        : undefined;
+      if (name) return name;
+    }
+  }
+  return undefined;
 }
 
 /** Prefer the node that describes *this* page and carries the most detail. */
@@ -192,7 +285,10 @@ function scoreNode(node: Record<string, unknown>, url: string): number {
   if (pick(node, ['sku', 'productID', 'mpn']) !== undefined) score += 1;
   if (pick(node, ['image']) !== undefined) score += 1;
   if (pick(node, ['brand']) !== undefined) score += 1;
-  if (Array.isArray(node.hasVariant)) score += 2;
+  // A ProductGroup is the canonical description of the page: it owns the name,
+  // the brand and every variant. Rank it above any single Product.
+  if (Array.isArray(node.hasVariant)) score += 6;
+  if (typesOf(node).some((type) => /ProductGroup$/i.test(type))) score += 2;
 
   const nodeUrl = asString(pick(node, ['url', '@id']));
   if (nodeUrl && url.includes(nodeUrl.replace(/^https?:\/\/[^/]+/, ''))) score += 3;
@@ -204,18 +300,30 @@ export function extractJsonLd(ctx: DetectionContext): Candidate | undefined {
   const blocks = queryAll(ctx.doc, 'script[type="application/ld+json"], script[type="application/json+ld"]');
   if (!blocks.length) return undefined;
 
+  const parsedBlocks: unknown[] = [];
   const products: Array<Record<string, unknown>> = [];
   for (const block of blocks) {
     const parsed = safeJsonParse(block.textContent);
     if (parsed === undefined) continue;
+    parsedBlocks.push(parsed);
     for (const node of flatten(parsed)) {
       if (isProductNode(node)) products.push(node);
     }
   }
   if (!products.length) return undefined;
 
+  const breadcrumbCategory = categoryFromBreadcrumbs(parsedBlocks);
+
   const node = products.sort((a, b) => scoreNode(b, ctx.url) - scoreNode(a, ctx.url))[0];
-  const offers = collectOffers(node);
+
+  // For a ProductGroup, everything below is scoped to the colourway this URL
+  // points at — its offers, its stock, its sizes. Mixing colourways is how a
+  // beige shirt ends up priced from a discounted navy one and marked sold out
+  // because navy's XS has gone.
+  const pageVariants = variantsForThisPage(node, ctx.url);
+  const offers = pageVariants.length
+    ? pageVariants.flatMap((item) => collectOffers(item))
+    : collectOffers(node);
 
   // The cheapest offer is what the shopper sees as "the price".
   const prices = offers.map(priceFromOffer).filter((p): p is number => p !== undefined);
@@ -239,10 +347,13 @@ export function extractJsonLd(ctx: DetectionContext): Candidate | undefined {
       ? 'out_of_stock'
       : 'unknown';
 
-  const groupVariants = variantsFromGroup(node);
+  const groupVariants = variantsFromGroup(pageVariants);
   const offerVariants = groupVariants.length ? [] : variantsFromOffers(offers);
 
-  const images = asImageList(node.image).slice(0, 8);
+  // A ProductGroup often carries no image of its own; its variants do.
+  const images = (
+    asImageList(node.image).length ? asImageList(node.image) : pageVariants.flatMap((item) => asImageList(item.image))
+  ).slice(0, 8);
 
   return {
     source: 'jsonld',
@@ -252,8 +363,8 @@ export function extractJsonLd(ctx: DetectionContext): Candidate | undefined {
       brand: asString(pick(node, ['brand', 'manufacturer'])),
       description: asString(pick(node, ['description'])),
       sku: asString(pick(node, ['sku', 'mpn'])),
-      productId: asString(pick(node, ['productID', 'productId', 'gtin13', 'gtin', 'sku'])),
-      category: asString(pick(node, ['category'])),
+      productId: asString(pick(node, ['productID', 'productId', 'productGroupID', 'gtin13', 'gtin', 'sku'])),
+      category: asString(pick(node, ['category'])) ?? breadcrumbCategory,
       canonicalUrl: asString(pick(node, ['url'])),
       imageUrl: images[0],
       images,

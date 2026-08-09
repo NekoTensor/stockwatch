@@ -110,12 +110,24 @@ def merge_variant_sets(sets: list[tuple[str, list[VariantSnapshot]]]) -> list[Va
             target = index.get(normalise_key(variant.name))
             if target is None:
                 continue
+
+            # Availability is worth combining, but not all evidence is equal.
+            # The DOM layer infers "in stock" from a control that merely *lacks*
+            # a disabled marker - a weak claim that must not overturn an explicit
+            # schema.org/OutOfStock. The more trusted layer wins a straight
+            # disagreement; equally trusted layers resolve it optimistically.
             if target.availability is StockStatus.UNKNOWN:
                 target.availability = variant.availability
                 if variant.availability is not StockStatus.UNKNOWN:
                     target.source = variant.source
             elif variant.availability is not StockStatus.UNKNOWN:
-                target.availability = merge_availability(target.availability, variant.availability)
+                here = PRIORITY.get(primary_source, 0)
+                there = PRIORITY.get(source, 0)
+                if there > here:
+                    target.availability = variant.availability
+                    target.source = variant.source
+                elif there == here:
+                    target.availability = merge_availability(target.availability, variant.availability)
             target.sku = target.sku or variant.sku
             target.price = target.price or variant.price
 

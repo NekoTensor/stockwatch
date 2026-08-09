@@ -39,6 +39,39 @@
     }
   }
 
+  /**
+   * An explicit choice overrides the system preference. The attribute selector
+   * carries higher specificity than the bare `:root` inside the media query,
+   * so ordering is not what decides this — which matters, because the two rules
+   * can be emitted in either order once the CSS is bundled.
+   *
+   * Absence of the attribute is "follow the system", so nothing here needs to
+   * re-state the default.
+   */
+  :root[data-theme='light'] {
+    color-scheme: light;
+    --sw-bg: #ffffff;
+    --sw-fg: #000000;
+    --sw-muted: #767676;
+    --sw-faint: #a3a3a3;
+    --sw-line: #e5e5e5;
+    --sw-surface: #f7f7f7;
+    --sw-sale: #c8102e;
+    --sw-stock: #1c7c3c;
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --sw-bg: #0b0b0b;
+    --sw-fg: #f2f2f2;
+    --sw-muted: #9a9a9a;
+    --sw-faint: #6b6b6b;
+    --sw-line: #262626;
+    --sw-surface: #151515;
+    --sw-sale: #ff5a6e;
+    --sw-stock: #4ade80;
+  }
+
   html,
   body {
     margin: 0;

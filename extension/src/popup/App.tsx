@@ -16,7 +16,7 @@ import { ProductHero } from './components/ProductHero';
 import { LoadingScreen, MessageScreen, NotDetectedScreen } from './components/Screens';
 import { TrackingPanel } from './components/TrackingPanel';
 import { VariantGrid, variantGroupLabel } from './components/VariantGrid';
-import { Wordmark } from './components/ui';
+import { ThemeToggle, Wordmark } from './components/ui';
 import { useDetection } from './state/useDetection';
 
 function Header({ right }: { right?: ReactNode }) {
@@ -182,12 +182,15 @@ export default function App() {
 
 function Footer({ session, onSignIn }: { session: Session | null; onSignIn: () => void }) {
   return (
-    <div className="sw-rule flex items-center justify-between px-5 py-3">
-      <button type="button" onClick={openDashboard} className="sw-label underline underline-offset-4">
-        Dashboard
-      </button>
+    <div className="sw-rule flex items-center justify-between gap-3 px-5 py-3">
+      <div className="flex items-center gap-4">
+        <button type="button" onClick={openDashboard} className="sw-label underline underline-offset-4">
+          Dashboard
+        </button>
+        <ThemeToggle />
+      </div>
       {session ? (
-        <span className="sw-label max-w-[180px] truncate">{session.email}</span>
+        <span className="sw-label max-w-[150px] truncate">{session.email}</span>
       ) : (
         <button type="button" onClick={onSignIn} className="sw-label underline underline-offset-4">
           Sign in

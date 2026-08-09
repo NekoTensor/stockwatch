@@ -36,7 +36,11 @@ export function AuthPanel({ onDone, onCancel }: { onDone: () => void; onCancel?:
       else await register(email.trim(), password);
       onDone();
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Something went wrong.');
+      const message = caught instanceof ApiError ? caught.message : (caught as Error)?.message;
+      setError(message || 'Something went wrong.');
+      // A backend that cannot be reached is almost always the cause, and the
+      // server field is the fix — open it rather than making them find it.
+      if (caught instanceof ApiError && caught.status === 0) setShowServer(true);
     } finally {
       setBusy(false);
     }

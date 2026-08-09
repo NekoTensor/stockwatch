@@ -20,7 +20,7 @@ import {
 } from '../lib/api';
 import { formatPrice } from '../lib/price';
 import { AuthPanel } from '../popup/components/AuthPanel';
-import { Spinner, Wordmark } from '../popup/components/ui';
+import { Spinner, ThemeToggle, Wordmark } from '../popup/components/ui';
 import { ProductCard } from './components/ProductCard';
 import { ProductPanel } from './components/ProductPanel';
 
@@ -156,7 +156,8 @@ export default function App() {
         </nav>
       }
       account={
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-6">
+          <ThemeToggle variant="segmented" />
           <span className="sw-label max-w-[220px] truncate">{session.email}</span>
           <button
             type="button"

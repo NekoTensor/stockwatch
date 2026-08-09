@@ -1,0 +1,154 @@
+<!doctype html>
+<!--
+  Shape: a schema.org ProductGroup whose `hasVariant` holds every COLOUR x SIZE
+  combination, each a `@type: Product` with its own name, image and offer, and
+  each offer carrying the URL of *its own colourway page*.
+
+  Taken from the real structure H&M publishes. Three things about it break naive
+  handling, and this fixture exists to keep all three fixed:
+
+    1. The variants are richer-looking than the group that owns them, so a
+       scorer that treats them as candidates picks one arbitrary size of one
+       arbitrary colour - and then reports no sizes at all, because a leaf has
+       no variants of its own.
+    2. Colourways share the group. Unfiltered, navy's sold-out XS makes beige's
+       XS look sold out, and navy's lower price becomes the beige price.
+    3. The rendered size buttons are bare <div>s with hashed class names, no
+       data attributes and no aria labels.
+
+  The page URL is the BEIGE colourway (…001.html). Navy (…002.html) is cheaper
+  and partly sold out, and must not contaminate the result.
+-->
+<html lang="en">
+  <head>
+    <title>Men’s Beige Slim Fit Ribbed Henley shirt | H&amp;M IN</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Men’s Beige Slim Fit Ribbed Henley shirt | H&amp;M IN" />
+    <meta property="og:url" content="https://www2.hm.com/en_in/productpage.1301837001.html" />
+    <meta property="og:image" content="https://image.hm.com/assets/hm/henley-beige.jpg" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "HM.com" },
+          { "@type": "ListItem", "position": 2, "name": "Men" },
+          { "@type": "ListItem", "position": 3, "name": "T-shirts & Tops" },
+          { "@type": "ListItem", "position": 4, "name": "Slim Fit Ribbed Henley shirt" }
+        ]
+      }
+    </script>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "ProductGroup",
+        "name": "Slim Fit Ribbed Henley shirt",
+        "description": "Slim-fit shirt in ribbed cotton jersey with a button placket.",
+        "brand": { "@type": "Brand", "name": "H&M" },
+        "productGroupID": "1301837",
+        "variesBy": ["https://schema.org/color", "https://schema.org/size"],
+        "hasVariant": [
+          {
+            "@type": "Product",
+            "sku": "1301837001010",
+            "name": "Slim Fit Ribbed Henley shirt - Beige",
+            "color": "Beige",
+            "size": "S",
+            "image": "https://image.hm.com/assets/hm/henley-beige.jpg",
+            "offers": {
+              "@type": "Offer",
+              "url": "https://www2.hm.com/en_in/productpage.1301837001.html",
+              "priceCurrency": "INR",
+              "price": 2299,
+              "availability": "https://schema.org/InStock"
+            }
+          },
+          {
+            "@type": "Product",
+            "sku": "1301837001011",
+            "name": "Slim Fit Ribbed Henley shirt - Beige",
+            "color": "Beige",
+            "size": "M",
+            "image": "https://image.hm.com/assets/hm/henley-beige.jpg",
+            "offers": {
+              "@type": "Offer",
+              "url": "https://www2.hm.com/en_in/productpage.1301837001.html",
+              "priceCurrency": "INR",
+              "price": 2299,
+              "availability": "https://schema.org/OutOfStock"
+            }
+          },
+          {
+            "@type": "Product",
+            "sku": "1301837001012",
+            "name": "Slim Fit Ribbed Henley shirt - Beige",
+            "color": "Beige",
+            "size": "L",
+            "image": "https://image.hm.com/assets/hm/henley-beige.jpg",
+            "offers": {
+              "@type": "Offer",
+              "url": "https://www2.hm.com/en_in/productpage.1301837001.html",
+              "priceCurrency": "INR",
+              "price": 2299,
+              "availability": "https://schema.org/InStock"
+            }
+          },
+          {
+            "@type": "Product",
+            "sku": "1301837002010",
+            "name": "Slim Fit Ribbed Henley shirt - Navy",
+            "color": "Navy",
+            "size": "S",
+            "image": "https://image.hm.com/assets/hm/henley-navy.jpg",
+            "offers": {
+              "@type": "Offer",
+              "url": "https://www2.hm.com/en_in/productpage.1301837002.html",
+              "priceCurrency": "INR",
+              "price": 899,
+              "availability": "https://schema.org/OutOfStock"
+            }
+          },
+          {
+            "@type": "Product",
+            "sku": "1301837002011",
+            "name": "Slim Fit Ribbed Henley shirt - Navy",
+            "color": "Navy",
+            "size": "M",
+            "image": "https://image.hm.com/assets/hm/henley-navy.jpg",
+            "offers": {
+              "@type": "Offer",
+              "url": "https://www2.hm.com/en_in/productpage.1301837002.html",
+              "priceCurrency": "INR",
+              "price": 899,
+              "availability": "https://schema.org/OutOfStock"
+            }
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <header><a href="/">H&amp;M</a></header>
+    <main>
+      <div class="a1b2c3">
+        <img class="d4e5f6" src="https://image.hm.com/assets/hm/henley-beige.jpg" alt="Slim Fit Ribbed Henley shirt" width="700" />
+        <h1 class="g7h8i9">Slim Fit Ribbed Henley shirt</h1>
+        <div class="j0k1l2">Rs. 2,299.00</div>
+        <div class="m3n4o5">MRP inclusive of all taxes</div>
+
+        <div class="p6q7r8">COLOUR: Beige</div>
+
+        <!-- Size picker: bare divs, hashed classes, no data attributes. -->
+        <div class="s9t0u1 v2w3x4">
+          <div class="c3b99d b040a8 e7e0f4"><div>S</div></div>
+          <div class="c3b99d b040a8 e7e0f4"><div>M</div></div>
+          <div class="c3b99d b040a8 e7e0f4"><div>L</div></div>
+        </div>
+
+        <button class="y5z6a7">Add to bag</button>
+      </div>
+    </main>
+  </body>
+</html>

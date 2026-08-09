@@ -85,13 +85,24 @@ export function mergeVariantSets(sets: Array<{ source: SourceLayer; variants: Va
       const target = index.get(normaliseKey(variant.name));
       if (!target) continue;
 
-      // Availability is the field worth combining: whichever layer actually
-      // knows wins, and a disagreement resolves optimistically.
+      // Availability is the field worth combining, but not all evidence is
+      // equal. The DOM layer infers "in stock" from a control that merely
+      // *lacks* a disabled marker — a weak claim that must not overturn an
+      // explicit `schema.org/OutOfStock`. So the more trusted layer wins a
+      // straight disagreement, and only equally trusted layers fall back to
+      // resolving it optimistically.
       if (target.availability === 'unknown') {
         target.availability = variant.availability;
         if (variant.availability !== 'unknown') target.source = variant.source;
       } else if (variant.availability !== 'unknown') {
-        target.availability = mergeAvailability(target.availability, variant.availability);
+        const here = PRIORITY[primary.source];
+        const there = PRIORITY[set.source];
+        if (there > here) {
+          target.availability = variant.availability;
+          target.source = variant.source;
+        } else if (there === here) {
+          target.availability = mergeAvailability(target.availability, variant.availability);
+        }
       }
 
       target.sku ??= variant.sku;

@@ -83,7 +83,11 @@ not recognise is **`unknown`** — never `out_of_stock`. A tracker that guesses
 Modelled on how a fashion retailer presents a product rather than how a
 dashboard presents a metric: white space, hairlines, no rounded corners,
 uppercase wide-tracked labels against normal-case product names, and colour
-reserved for one red (reduced) and one green dot (in stock). Light and dark.
+reserved for one red (reduced) and one green dot (in stock).
+
+**Light, dark, or follow the system.** The choice sits in the popup footer and
+the dashboard header, and is shared between them. It is applied before the
+first paint, so opening the popup never flashes the wrong theme.
 
 ### Dashboard
 
@@ -168,6 +172,11 @@ cd backend && .venv/bin/celery -A app.worker.celery_app worker --loglevel=info
 cd backend && .venv/bin/celery -A app.worker.celery_app beat --loglevel=info
 ```
 </details>
+
+> **Signing in needs the backend running.** The extension talks to
+> `http://localhost:8000/api` by default; if nothing is listening there, the
+> popup says so and offers a **Server** field to point it elsewhere. Start it
+> with `docker compose up -d`, or run `uvicorn app.main:app` from `backend/`.
 
 ## Try it
 

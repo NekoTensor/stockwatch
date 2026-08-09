@@ -120,6 +120,68 @@ def test_unknown_store_dom_only():
     assert by_name["Shade 03"] is StockStatus.OUT_OF_STOCK
 
 
+def test_productgroup_with_several_colourways():
+    """The H&M shape: one ProductGroup holding every colour x size combination.
+
+    Guards three failures at once - describing the page with a leaf variant
+    instead of the group, letting another colourway set the price, and letting
+    another colourway's sold-out size mark this one's as sold out.
+    """
+    snapshot = detect_product(
+        load_fixture("productgroup-colourways.html"),
+        "https://www2.hm.com/en_in/productpage.1301837001.html",
+    )
+
+    assert snapshot.name == "Slim Fit Ribbed Henley shirt"
+    assert "Beige" not in (snapshot.name or "")
+    assert snapshot.brand == "H&M"
+    assert snapshot.product_id == "1301837"
+    assert snapshot.category == "T-shirts & Tops"
+
+    # Navy is cheaper and partly sold out; neither may leak into beige.
+    assert snapshot.current_price == Decimal("2299.00")
+    assert snapshot.availability is StockStatus.IN_STOCK
+
+    by_name = {variant.name: variant.availability for variant in snapshot.variants}
+    assert list(by_name) == ["S", "M", "L"]
+    assert by_name["S"] is StockStatus.IN_STOCK
+    assert by_name["M"] is StockStatus.OUT_OF_STOCK
+    assert by_name["L"] is StockStatus.IN_STOCK
+    assert all(variant.type is VariantType.SIZE for variant in snapshot.variants)
+
+
+def test_size_picker_of_bare_divs_with_hashed_classes():
+    """No structured data, no data attributes, no aria labels - just divs."""
+    html = """<html><head><title>Ribbed Henley shirt</title></head><body><main>
+      <div class="a1b2c3">
+        <h1 class="g7h8i9">Ribbed Henley shirt</h1>
+        <div class="j0k1l2">Rs. 2,299.00</div>
+        <div class="s9t0u1">
+          <div class="c3b99d b040a8"><div>S</div></div>
+          <div class="c3b99d b040a8"><div>M</div></div>
+          <div class="c3b99d b040a8"><div>L</div></div>
+          <div class="c3b99d b040a8"><div>XL</div></div>
+        </div>
+        <button>Add to bag</button>
+      </div></main></body></html>"""
+
+    snapshot = detect_product(html, "https://shop.example/en/productpage.99.html")
+
+    assert [variant.name for variant in snapshot.variants] == ["S", "M", "L", "XL"]
+    assert snapshot.current_price == Decimal("2299.00")
+
+
+def test_ordinary_short_text_is_not_mistaken_for_variants():
+    html = """<html><body><main>
+      <h1>Cotton Shirt</h1><div class="price">Rs. 1,299.00</div>
+      <div class="info"><div>New</div><div>Sale</div><div>Care</div><div>Fit</div></div>
+      <button>Add to bag</button>
+    </main></body></html>"""
+
+    snapshot = detect_product(html, "https://shop.example/p/cotton-shirt-12345")
+    assert snapshot.variants == []
+
+
 def test_amazon_shaped_page_with_no_structured_data():
     """The adapter's selectors plus the generic DOM layer, on the same page.
 

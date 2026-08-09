@@ -22,40 +22,20 @@ const params = new URLSearchParams(location.search);
 const view = params.get('view') ?? 'popup';
 
 /**
- * Force a colour scheme, for deterministic screenshots.
+ * Pin the theme, for deterministic screenshots.
  *
- * The stylesheet keys off `prefers-color-scheme`, which a headless browser
- * inherits from the host OS. Re-declaring the palette here — rather than adding
- * a `data-theme` hook to the shipped CSS — keeps this entirely inside the dev
- * harness.
+ * Seeded into the stubbed storage rather than stamped on the element: the app
+ * applies the *stored* theme on start-up, so writing the attribute directly
+ * here would simply be undone. Going through storage also means the harness
+ * exercises the real path instead of a private override.
  */
-function forceTheme(theme: 'light' | 'dark'): void {
-  const palette =
-    theme === 'dark'
-      ? {
-          '--sw-bg': '#0b0b0b', '--sw-fg': '#f2f2f2', '--sw-muted': '#9a9a9a',
-          '--sw-faint': '#6b6b6b', '--sw-line': '#262626', '--sw-surface': '#151515',
-          '--sw-sale': '#ff5a6e', '--sw-stock': '#4ade80',
-        }
-      : {
-          '--sw-bg': '#ffffff', '--sw-fg': '#000000', '--sw-muted': '#767676',
-          '--sw-faint': '#a3a3a3', '--sw-line': '#e5e5e5', '--sw-surface': '#f7f7f7',
-          '--sw-sale': '#c8102e', '--sw-stock': '#1c7c3c',
-        };
+const forcedTheme = params.get('theme');
 
-  // Set inline on <html> rather than as a <style> block: Vite injects the app's
-  // CSS when the module loads, which is *after* this runs, so a stylesheet rule
-  // of equal specificity would lose. An inline declaration always wins.
-  const root = document.documentElement;
-  for (const [key, value] of Object.entries(palette)) {
-    root.style.setProperty(key, value);
+function seedTheme(): void {
+  if (forcedTheme === 'light' || forcedTheme === 'dark') {
+    store['stockwatch:theme'] = forcedTheme;
   }
-  root.style.colorScheme = theme;
-  root.style.background = palette['--sw-bg'];
 }
-
-const theme = params.get('theme');
-if (theme === 'light' || theme === 'dark') forceTheme(theme);
 
 /**
  * Abstract stand-in for a product photograph.
@@ -89,6 +69,10 @@ const FIXTURES: Record<string, { file: string; url: string; globals?: Record<str
     url: 'https://www.zara.com/in/en/leather-effect-jacket-p07840321.html',
   },
   'og-and-dom': { file: 'og-and-dom.html', url: 'https://www2.hm.com/en_in/productpage.1234567001.html' },
+  'productgroup-colourways': {
+    file: 'productgroup-colourways.html',
+    url: 'https://www2.hm.com/en_in/productpage.1301837001.html',
+  },
   'embedded-state': {
     file: 'embedded-state.html',
     url: 'https://www.myntra.com/jeans/roadster/roadster-men-blue-jeans/2296012/buy',
@@ -152,6 +136,7 @@ async function renderPopup(): Promise<void> {
   if (result.product) result.product.imageUrl = placeholderImage(0);
 
   installChrome(result, fixture.url);
+  seedTheme();
 
   // Signed in by default, since that is the state the popup is normally used
   // in. Pass `?auth=out` to preview the sign-in panel instead.
@@ -368,6 +353,7 @@ function product(
 
 async function renderDashboard(): Promise<void> {
   installChrome(null, 'https://example.com');
+  seedTheme();
   store['stockwatch:session'] = {
     accessToken: 'preview',
     refreshToken: 'preview',

@@ -86,6 +86,84 @@ describe('OpenGraph + DOM page (no JSON-LD)', () => {
   });
 });
 
+describe('ProductGroup with several colourways (H&M shape)', () => {
+  const result = runDetection(
+    contextFromFixture('productgroup-colourways.html', 'https://www2.hm.com/en_in/productpage.1301837001.html'),
+  );
+
+  it('describes the page with the group, not one of its leaf variants', () => {
+    // The variants look richer than the group; picking one of them would name
+    // the product "… - Beige" and leave it with no sizes at all.
+    expect(result.product?.productName).toBe('Slim Fit Ribbed Henley shirt');
+    expect(result.product?.productName).not.toContain('Beige');
+    expect(result.status).toBe('detected');
+  });
+
+  it('prices the colourway on screen, not the cheapest one in the group', () => {
+    expect(result.product?.currentPrice).toBe(2299);
+    expect(result.product?.currency).toBe('INR');
+  });
+
+  it('lists this colourway’s sizes, not every colour’s', () => {
+    const variants = result.product?.variants ?? [];
+    expect(variants.map((variant) => variant.name)).toEqual(['S', 'M', 'L']);
+    expect(variants.every((variant) => variant.type === 'size')).toBe(true);
+  });
+
+  it('takes stock from this colourway only', () => {
+    const byName = Object.fromEntries(
+      (result.product?.variants ?? []).map((variant) => [variant.name, variant.availability]),
+    );
+    // Navy's S is sold out; beige's S is not, and must not inherit it.
+    expect(byName.S).toBe('in_stock');
+    expect(byName.M).toBe('out_of_stock');
+    expect(byName.L).toBe('in_stock');
+    expect(result.product?.availability).toBe('in_stock');
+  });
+
+  it('takes the category from the breadcrumb trail', () => {
+    expect(result.product?.category).toBe('T-shirts & Tops');
+  });
+
+  it('uses the group id as the product id', () => {
+    expect(result.product?.productId).toBe('1301837');
+  });
+});
+
+describe('size pickers built from bare divs with hashed class names', () => {
+  it('finds them when no structured data is available', () => {
+    // Same rendered markup as the H&M fixture, with the JSON-LD removed.
+    const html = `<html><head><title>Ribbed Henley shirt</title></head><body><main>
+      <div class="a1b2c3">
+        <h1 class="g7h8i9">Ribbed Henley shirt</h1>
+        <div class="j0k1l2">Rs. 2,299.00</div>
+        <div class="s9t0u1">
+          <div class="c3b99d b040a8"><div>S</div></div>
+          <div class="c3b99d b040a8"><div>M</div></div>
+          <div class="c3b99d b040a8"><div>L</div></div>
+          <div class="c3b99d b040a8"><div>XL</div></div>
+        </div>
+        <button>Add to bag</button>
+      </div></main></body></html>`;
+
+    const result = runDetection(contextFromHtml(html, 'https://shop.example/en/productpage.99.html'));
+
+    expect(result.product?.variants.map((variant) => variant.name)).toEqual(['S', 'M', 'L', 'XL']);
+    expect(result.product?.currentPrice).toBe(2299);
+  });
+
+  it('does not sweep up ordinary short text as variants', () => {
+    const html = `<html><body><main>
+      <h1>Cotton Shirt</h1><div class="price">Rs. 1,299.00</div>
+      <div class="info"><div>New</div><div>Sale</div><div>Care</div><div>Fit</div></div>
+      <button>Add to bag</button>
+    </main></body></html>`;
+
+    const result = runDetection(contextFromHtml(html, 'https://shop.example/p/cotton-shirt-12345'));
+    expect(result.product?.variants ?? []).toHaveLength(0);
+  });
+});
+
 describe('client-rendered page (product only exists in embedded JSON)', () => {
   const result = runDetection(
     contextFromFixture(

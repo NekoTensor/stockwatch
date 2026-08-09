@@ -57,24 +57,44 @@ function inNoiseRegion(el: Element): boolean {
   return false;
 }
 
-/** The subtree most likely to be the product detail area. */
-function productScope(doc: Document): ParentNode {
-  const selectors = [
-    '[class*="product-detail" i]',
-    '[class*="productDetail" i]',
-    '[id*="product-detail" i]',
-    '[class*="pdp" i]',
-    '[id*="pdp" i]',
-    '[data-testid*="product" i]',
-    '[itemtype*="Product" i]',
-    'main',
-    'article',
-  ];
-  for (const selector of selectors) {
-    const found = queryAll(doc, selector).find((el) => !isHiddenDeep(el) && textOf(el).length > 40);
-    if (found) return found;
+const SCOPE_SELECTORS = [
+  '[class*="product-detail" i]',
+  '[class*="productDetail" i]',
+  '[id*="product-detail" i]',
+  '[class*="pdp" i]',
+  '[id*="pdp" i]',
+  '[data-testid*="product" i]',
+  '[itemtype*="Product" i]',
+  'main',
+  'article',
+];
+
+/**
+ * The subtree most likely to be the product detail area.
+ *
+ * A scope is only accepted if it **contains the product's own heading**. Taking
+ * the first selector match without that check is how H&M ended up scoped to a
+ * `<section id="…pdp…">` holding neither the title, the price nor the size
+ * grid — every downstream heuristic then found nothing, on a page that has all
+ * three.
+ *
+ * Where several candidates qualify the largest wins, not the smallest: the job
+ * of scoping is only to skip obviously unrelated markup, and excluding *other*
+ * products is `inNoiseRegion`'s job, done per element.
+ */
+function productScope(doc: Document, titleEl: Element | undefined): ParentNode {
+  const candidates = SCOPE_SELECTORS.flatMap((selector) => queryAll(doc, selector)).filter(
+    (el) => !isHiddenDeep(el) && textOf(el).length > 40,
+  );
+
+  if (titleEl) {
+    const containing = candidates.filter((el) => el !== titleEl && el.contains(titleEl));
+    if (containing.length) {
+      return containing.reduce((best, el) => (textOf(el).length > textOf(best).length ? el : best));
+    }
   }
-  return doc.body ?? doc;
+
+  return doc.querySelector('main') ?? doc.querySelector('article') ?? doc.body ?? doc;
 }
 
 // ---------------------------------------------------------------- title ----
@@ -282,16 +302,35 @@ function typeFromLabel(label: string, sample: string): VariantType {
   return 'generic';
 }
 
-/** Availability of a single variant control. */
+const STATE_OUT = /out[-_\s]?of[-_\s]?stock|sold[-_\s]?out|unavailable|notify/i;
+const STATE_IN = /\bin[-_\s]?stock\b|\bavailable\b/i;
+
+/**
+ * Availability of a single variant control.
+ *
+ * State is frequently carried by an attribute rather than by looks, and often
+ * on a *child* of the control: H&M writes `aria-label="Size XL: Sold out."` and
+ * `data-testid="014-out-of-stock"` on the cell inside the button.
+ */
 function variantAvailability(el: Element): StockStatus {
   if (isDisabledLike(el)) return 'out_of_stock';
 
-  const inner = textOf(el);
-  const fromText = availabilityFromText(inner);
-  if (fromText === 'out_of_stock') return 'out_of_stock';
+  const descriptors = [
+    el.getAttribute('aria-label') ?? '',
+    el.getAttribute('title') ?? '',
+    el.getAttribute('data-testid') ?? '',
+    ...queryAll(el, '[aria-label], [title], [data-testid]')
+      .slice(0, 8)
+      .flatMap((child) => [
+        child.getAttribute('aria-label') ?? '',
+        child.getAttribute('title') ?? '',
+        child.getAttribute('data-testid') ?? '',
+      ]),
+  ].join(' ');
 
-  const title = `${el.getAttribute('title') ?? ''} ${el.getAttribute('aria-label') ?? ''}`;
-  if (availabilityFromText(title) === 'out_of_stock') return 'out_of_stock';
+  if (STATE_OUT.test(descriptors)) return 'out_of_stock';
+  if (availabilityFromText(textOf(el)) === 'out_of_stock') return 'out_of_stock';
+  if (STATE_IN.test(descriptors)) return 'in_stock';
 
   // A control that is present and not switched off is buyable. That is a
   // positive statement about *this* control, not about the whole product.
@@ -303,13 +342,32 @@ function variantAvailability(el: Element): StockStatus {
  * plausible control by its parent, then keep the groups that look like a
  * size/shade picker rather than a menu.
  */
+/**
+ * Walk out of wrappers that contribute nothing but styling.
+ *
+ * `<div class="hashed"><div>M</div></div>` — the inner div holds the text, the
+ * outer one holds the class that says whether M is available and sits beside
+ * its fellow sizes. The outer one is the control.
+ */
+function unwrapControl(el: Element, label: string): Element {
+  let node = el;
+  for (let hops = 0; hops < 3; hops += 1) {
+    const parent = node.parentElement;
+    if (!parent || parent.children.length !== 1) break;
+    if (cleanText(textOf(parent)) !== label) break;
+    node = parent;
+  }
+  return node;
+}
+
 function collectVariants(scope: ParentNode): Variant[] {
   const controls = queryAll(
     scope,
-    'button, [role="radio"], [role="option"], [role="button"], label, li, a[data-value], div[data-value], span[data-value], option',
-  ).slice(0, 1500);
+    'button, [role="radio"], [role="option"], [role="button"], label, li, a, div, span, option',
+  ).slice(0, 6000);
 
   const groups = new Map<Element, Element[]>();
+  const claimed = new Set<Element>();
 
   for (const el of controls) {
     if (isHiddenDeep(el) && el.tagName !== 'OPTION') continue;
@@ -318,11 +376,29 @@ function collectVariants(scope: ParentNode): Variant[] {
     const label = cleanText(accessibleLabel(el));
     if (!label || label.length > 24) continue;
 
-    const parent = el.parentElement;
+    // Plain containers are only considered when they are a leaf whose entire
+    // text *is* a variant token. Modern storefronts build size pickers out of
+    // bare <div>s with hashed class names and no data attributes, so requiring
+    // `data-value` missed them entirely — but accepting any short-texted div
+    // would sweep up half the page.
+    const isPlainContainer = ['DIV', 'SPAN', 'A'].includes(el.tagName);
+    if (isPlainContainer && !el.hasAttribute('data-value')) {
+      if (el.children.length > 0 || !VARIANT_TOKEN.test(label)) continue;
+    }
+
+    // Those same pickers wrap each option in a styling div, so the options are
+    // cousins rather than siblings and grouping by parent yields groups of one.
+    // Climb through wrappers that add no text of their own; the outermost is
+    // also where the disabled/selected class usually lives.
+    const control = isPlainContainer ? unwrapControl(el, label) : el;
+    if (claimed.has(control)) continue;
+    claimed.add(control);
+
+    const parent = control.parentElement;
     if (!parent) continue;
 
     const list = groups.get(parent) ?? [];
-    list.push(el);
+    list.push(control);
     groups.set(parent, list);
   }
 
@@ -493,8 +569,11 @@ export interface DomSignals {
 }
 
 export function extractDom(ctx: DetectionContext): { candidate: Candidate; signals: DomSignals } {
-  const scope = productScope(ctx.doc);
+  // The title is found across the whole document, then used to validate the
+  // scope — a product area that does not contain the product's name is not the
+  // product area.
   const titleEl = findTitleElement(ctx.doc);
+  const scope = productScope(ctx.doc, titleEl);
   const productName = titleEl ? cleanText(textOf(titleEl)) : undefined;
 
   const priceCandidates = collectPriceCandidates(scope, titleEl);
