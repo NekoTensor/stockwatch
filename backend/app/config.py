@@ -8,9 +8,10 @@ the browser extension — the extension talks to this API and nothing else.
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -67,7 +68,15 @@ class Settings(BaseSettings):
     notification_cooldown_minutes: int = 60
 
     # --- cors ---
-    cors_origins: list[str] = ["chrome-extension://*", "http://localhost:5173"]
+    # NoDecode matters more than it looks. pydantic-settings treats a complex
+    # annotation (list, dict, set) as JSON and decodes it *before* any validator
+    # runs, so without this the comma-separated CORS_ORIGINS in .env never
+    # reaches the splitter below - it fails as malformed JSON while the process
+    # is still starting, and the container crashloops before it can bind a port.
+    cors_origins: Annotated[list[str], NoDecode] = [
+        "chrome-extension://*",
+        "http://localhost:5173",
+    ]
 
     @field_validator("cors_origins", mode="before")
     @classmethod
