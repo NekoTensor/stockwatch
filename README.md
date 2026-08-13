@@ -40,10 +40,12 @@ engine that reads it does not know the name of a single store.
 | | |
 |---|---|
 | **Detects** | Name, brand, price, MRP, discount, image, SKU, category, currency, and **per-size stock** on any store, from structured data down to DOM heuristics |
-| **Tracks** | Variant-level. You watch *your* size, not the product |
+| **Tracks** | Variant-level. You watch *your* size, and stock is reported for that size — not for whatever the store happens to have left |
 | **Monitors** | Server-side on a polite schedule, with retries, exponential backoff, per-host throttling and robots.txt |
 | **Remembers** | Every price observation, so lowest / highest / average / 7-day / 30-day are real numbers |
-| **Alerts** | Browser + email, deduplicated so a price that holds never pings twice |
+| **Judges** | Turns that history into one word — **good time to buy**, fair, or high — and shows the reasoning |
+| **Obeys** | Watch rules you write: *this size, back in stock, under ₹10,000, tell me on Discord* |
+| **Alerts** | Browser, email and Discord, deduplicated so a price that holds never pings twice |
 | **Never guesses** | A failed request is `unknown`, never "out of stock" |
 
 ## Why it works on stores nobody wrote code for
@@ -77,6 +79,59 @@ Stock is three-valued everywhere, in both the TypeScript and the Python
 implementation. A failed request, an unhydrated page, or a size widget we did
 not recognise is **`unknown`** — never `out_of_stock`. A tracker that guesses
 "sold out" wakes you at 3am for a restock that never happened.
+
+### Your size, not the store's stock
+
+A jacket whose XXL is available is not "in stock" to someone waiting on an M.
+Every product therefore carries two answers — what the store says, and what the
+store says about **the sizes you watch** — and the interface only ever shows the
+second. Watch nothing in particular and they are the same number.
+
+## Knowing when to buy
+
+A chart tells you what happened. It does not tell you what to do.
+
+Each product's history is reduced to one of three words, with the sentence
+behind it:
+
+> **Good time to buy** · 12% below the 30-day average
+> **Price is high** · 8% above the 30-day average
+> **Fair price** · within a few percent of the 30-day average
+
+Underneath sit the numbers it came from — 30-day average and median, what buying
+now saves against that average, all-time low and high, how much this price moves
+(as a percentage, so a ₹900 t-shirt and a ₹90,000 laptop compare), and where
+today sits in its own history: *cheaper than 80% of checks*.
+
+Below four observations the verdict is **unknown** and says so. Three readings
+are not a distribution, and a tracker that dresses one up as advice has spent
+its credibility before the first real drop.
+
+### Watch rules
+
+The heuristics are a default, not a straitjacket. A rule is a sentence:
+
+> *M* · **back in stock** · **and** price **below ₹10,000** → browser · email · Discord
+
+Rules are per product, optionally per variant, and combine stock and price with
+`all` or `any`. Once a product has one, its rules become the whole policy for it
+— someone who has written down what they want should not also get what we
+guessed.
+
+Two decisions worth knowing about:
+
+- **Back in stock is a transition.** It fires on the check where your size
+  crosses from sold out to available, not on every check while it stays there.
+- **Unknown never triggers anything.** A failed fetch is not news.
+
+### Alerts that answer the question
+
+An alert exists to answer *should I act on this*, so it carries the reason:
+the product, the size, the price, what it was, and the context that makes it
+worth reading — "12% below the 30-day average" — with one button to the product
+page. Delivered to the browser, to email via Resend, and to Discord via a
+channel webhook you paste into Settings. A webhook Discord has deleted costs you
+one alert, not the run.
 
 ## Interface
 
@@ -236,13 +291,15 @@ cd extension && npm run check
 cd backend && .venv/bin/pytest
 ```
 
-**157 tests, no network and no browser required.** Detection runs against saved
+**214 tests, no network and no browser required.** Detection runs against saved
 page *shapes* rather than copies of one store, monitoring runs against a mocked
 transport, and the notification rules are asserted directly:
 
 - `out → in` notifies; staying in stock does not; `out → in → out → in` notifies twice
 - a price that drops notifies; the same price again does not; a bounce does
 - a timeout, a 429, a 404 and a bot wall all leave stock **exactly as it was**
+- a rule for M ignores L returning; `back_in_stock` does not re-fire while it stays in stock
+- the verdict abstains under four observations, and `unknown` satisfies no condition
 
 There is also a preview harness that renders the real popup and dashboard in an
 ordinary tab, running the real pipeline against fixtures:

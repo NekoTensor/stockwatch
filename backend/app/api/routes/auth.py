@@ -25,6 +25,12 @@ from app.services.security import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _user_out(user: User) -> UserOut:
+    out = UserOut.model_validate(user)
+    out.discord_configured = bool(user.discord_webhook_url)
+    return out
+
+
 def _tokens(user: User) -> TokenPair:
     access, expires_in = create_access_token(user.id)
     refresh, _ = create_refresh_token(user.id)
@@ -79,16 +85,28 @@ def refresh(payload: RefreshRequest, db: DbSession) -> TokenPair:
 
 
 @router.get("/me", response_model=UserOut)
-def me(user: CurrentUser) -> User:
-    return user
+def me(user: CurrentUser) -> UserOut:
+    return _user_out(user)
 
 
 @router.patch("/me", response_model=UserOut)
 def update_me(payload: UserUpdate, user: CurrentUser, db: DbSession) -> User:
-    for field in ("display_name", "email_notifications", "browser_notifications"):
+    for field in (
+        "display_name",
+        "email_notifications",
+        "browser_notifications",
+        "discord_notifications",
+    ):
         value = getattr(payload, field)
         if value is not None:
             setattr(user, field, value)
+
+    if payload.discord_webhook_url is not None:
+        # An empty string is how the client clears it; None means "not touching it".
+        user.discord_webhook_url = payload.discord_webhook_url or None
+        if not user.discord_webhook_url:
+            user.discord_notifications = False
+
     db.commit()
     db.refresh(user)
-    return user
+    return _user_out(user)

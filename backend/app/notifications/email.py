@@ -30,7 +30,7 @@ def _client():  # noqa: ANN202 - resend's module-level API has no exported type
     return resend
 
 
-def send_notification_email(notification: Notification) -> bool:
+def send_notification_email(notification: Notification, price_context: str = "") -> bool:
     """Send one alert. Returns whether it went out.
 
     The delivery stamp is written onto the (already attached) notification
@@ -49,7 +49,7 @@ def send_notification_email(notification: Notification) -> bool:
 
     try:
         resend = _client()
-        html, text = render_email(notification, product)
+        html, text = render_email(notification, product, price_context)
         response = resend.Emails.send(
             {
                 "from": settings.email_from,

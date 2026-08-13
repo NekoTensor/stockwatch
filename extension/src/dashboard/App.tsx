@@ -21,10 +21,18 @@ import {
 import { formatPrice } from '../lib/price';
 import { AuthPanel } from '../popup/components/AuthPanel';
 import { Spinner, ThemeToggle, Wordmark } from '../popup/components/ui';
+import { NotificationSettings } from './components/NotificationSettings';
 import { ProductCard } from './components/ProductCard';
 import { ProductPanel } from './components/ProductPanel';
 
-type Tab = 'overview' | 'tracked' | 'price-drops' | 'back-in-stock' | 'lowest' | 'notifications';
+type Tab =
+  | 'overview'
+  | 'tracked'
+  | 'price-drops'
+  | 'back-in-stock'
+  | 'lowest'
+  | 'notifications'
+  | 'settings';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
@@ -33,6 +41,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'back-in-stock', label: 'In stock' },
   { id: 'lowest', label: 'Lowest price' },
   { id: 'notifications', label: 'Alerts' },
+  { id: 'settings', label: 'Settings' },
 ];
 
 const SORTS = [
@@ -52,6 +61,7 @@ const TAB_FILTER: Record<Tab, string | undefined> = {
   'back-in-stock': 'in_stock',
   lowest: 'lowest_price',
   notifications: undefined,
+  settings: undefined,
 };
 
 export default function App() {
@@ -114,6 +124,24 @@ export default function App() {
     } catch (caught) {
       setError((caught as ApiError).message);
     }
+  };
+
+  // Defined once and spread into every grid. They used to be written inline at
+  // the one call site that had them, which is how the Overview tab ended up
+  // rendering cards whose buttons were bound to `() => undefined` — visibly
+  // clickable, silently inert.
+  const cardActions = {
+    onCheck: async (product: TrackedProductOut) => {
+      setCheckingId(product.id);
+      try {
+        await act(() => api.checkNow(product.id));
+      } finally {
+        setCheckingId(null);
+      }
+    },
+    onPauseToggle: (product: TrackedProductOut) =>
+      act(() => (product.tracking_enabled ? api.pauseProduct(product.id) : api.resumeProduct(product.id))),
+    onDelete: (product: TrackedProductOut) => act(() => api.deleteProduct(product.id)),
   };
 
   if (session === undefined) {
@@ -179,7 +207,17 @@ export default function App() {
       ) : null}
 
       {tab === 'overview' ? (
-        <OverviewSection overview={overview} products={products} currency={currency} onOpen={setOpen} />
+        <OverviewSection
+          overview={overview}
+          products={products}
+          currency={currency}
+          loading={loading}
+          checkingId={checkingId}
+          onOpen={setOpen}
+          {...cardActions}
+        />
+      ) : tab === 'settings' ? (
+        <NotificationSettings />
       ) : tab === 'notifications' ? (
         <NotificationsSection
           notifications={notifications}
@@ -215,15 +253,7 @@ export default function App() {
             loading={loading}
             checkingId={checkingId}
             onOpen={setOpen}
-            onCheck={async (product) => {
-              setCheckingId(product.id);
-              await act(() => api.checkNow(product.id));
-              setCheckingId(null);
-            }}
-            onPauseToggle={(product) =>
-              act(() => (product.tracking_enabled ? api.pauseProduct(product.id) : api.resumeProduct(product.id)))
-            }
-            onDelete={(product) => act(() => api.deleteProduct(product.id))}
+            {...cardActions}
           />
         </>
       )}
@@ -265,17 +295,30 @@ function Shell({
   );
 }
 
+interface CardActions {
+  onCheck: (product: TrackedProductOut) => void;
+  onPauseToggle: (product: TrackedProductOut) => void;
+  onDelete: (product: TrackedProductOut) => void;
+}
+
 function OverviewSection({
   overview,
   products,
   currency,
+  loading,
+  checkingId,
   onOpen,
+  onCheck,
+  onPauseToggle,
+  onDelete,
 }: {
   overview: Overview | null;
   products: TrackedProductOut[];
   currency: string | undefined;
+  loading: boolean;
+  checkingId: number | null;
   onOpen: (product: TrackedProductOut) => void;
-}) {
+} & CardActions) {
   const recent = useMemo(() => products.slice(0, 8), [products]);
 
   if (!overview) {
@@ -298,22 +341,15 @@ function OverviewSection({
 
       <section className="mt-16">
         <h2 className="sw-label mb-6">Recently added</h2>
-        {recent.length ? (
-          <div className="grid grid-cols-2 gap-x-6 gap-y-12 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {recent.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onOpen={onOpen}
-                onCheck={() => undefined}
-                onPauseToggle={() => undefined}
-                onDelete={() => undefined}
-              />
-            ))}
-          </div>
-        ) : (
-          <EmptyState />
-        )}
+        <ProductGrid
+          products={recent}
+          loading={loading}
+          checkingId={checkingId}
+          onOpen={onOpen}
+          onCheck={onCheck}
+          onPauseToggle={onPauseToggle}
+          onDelete={onDelete}
+        />
       </section>
     </>
   );
@@ -344,10 +380,7 @@ function ProductGrid({
   loading: boolean;
   checkingId: number | null;
   onOpen: (product: TrackedProductOut) => void;
-  onCheck: (product: TrackedProductOut) => void;
-  onPauseToggle: (product: TrackedProductOut) => void;
-  onDelete: (product: TrackedProductOut) => void;
-}) {
+} & CardActions) {
   if (loading) {
     return (
       <div className="grid grid-cols-2 gap-x-6 gap-y-12 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

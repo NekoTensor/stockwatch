@@ -36,6 +36,15 @@ class Notification(Base):
     tracked_variant_id: Mapped[int | None] = mapped_column(
         ForeignKey("tracked_variants.id", ondelete="CASCADE")
     )
+    #: The rule that fired, when this alert came from one.
+    watch_rule_id: Mapped[int | None] = mapped_column(ForeignKey("watch_rules.id", ondelete="SET NULL"))
+
+    #: Which channels this particular alert is for. A rule can ask for Discord
+    #: only; without per-alert channels that intent is lost by the time the
+    #: sender runs.
+    channel_browser: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    channel_email: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    channel_discord: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     type: Mapped[str] = mapped_column(String(40), nullable=False)
     priority: Mapped[str] = mapped_column(String(10), default=NotificationPriority.NORMAL, nullable=False)
@@ -57,6 +66,8 @@ class Notification(Base):
     email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     email_error: Mapped[str | None] = mapped_column(Text)
     browser_delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discord_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discord_error: Mapped[str | None] = mapped_column(Text)
     is_test: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     user: Mapped[User] = relationship(back_populates="notifications")

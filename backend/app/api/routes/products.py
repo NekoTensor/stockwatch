@@ -36,6 +36,8 @@ def _to_out(product: TrackedProduct) -> ProductOut:
     if product.store:
         out.store = product.store.name
         out.store_slug = product.store.slug
+    out.verdict = product.quick_verdict()
+    out.active_rule_count = sum(1 for rule in product.watch_rules if rule.is_active)
     return out
 
 

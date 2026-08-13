@@ -17,12 +17,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, TimestampMixin
-from app.models.enums import CheckStatus, StockStatus, VariantType
+from app.models.enums import CheckStatus, PriceVerdict, StockStatus, VariantType
 
 if TYPE_CHECKING:
     from app.models.history import PriceHistory, StockHistory
     from app.models.store import Store
     from app.models.user import User
+    from app.models.watch_rule import WatchRule
 
 #: Money is Numeric, never float. 0.1 + 0.2 problems in a price-drop threshold
 #: turn into alerts that fire for a difference that does not exist.
@@ -58,7 +59,14 @@ class TrackedProduct(Base, TimestampMixin):
     highest_price: Mapped[Decimal | None] = mapped_column(Money)
     average_price: Mapped[Decimal | None] = mapped_column(Money)
 
+    #: The retailer's answer: is this product buyable at all.
     availability: Mapped[str] = mapped_column(String(20), default=StockStatus.UNKNOWN, nullable=False)
+    #: The user's answer: are the sizes they asked about buyable. Stored rather
+    #: than computed on read because the dashboard filters and sorts on it, and
+    #: a Python-only property would let the filters disagree with the display.
+    watched_availability: Mapped[str] = mapped_column(
+        String(20), default=StockStatus.UNKNOWN, nullable=False
+    )
 
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     last_check_status: Mapped[str | None] = mapped_column(String(20))
@@ -86,6 +94,9 @@ class TrackedProduct(Base, TimestampMixin):
     price_history: Mapped[list[PriceHistory]] = relationship(
         back_populates="product", cascade="all, delete-orphan", passive_deletes=True
     )
+    watch_rules: Mapped[list[WatchRule]] = relationship(
+        back_populates="product", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     @property
     def discount_percentage(self) -> int | None:
@@ -98,6 +109,70 @@ class TrackedProduct(Base, TimestampMixin):
     @property
     def is_at_lowest(self) -> bool:
         return bool(self.current_price and self.lowest_price and self.current_price <= self.lowest_price)
+
+    def compute_watched_availability(self) -> StockStatus:
+        """Can the user buy *what they asked to be told about*?
+
+        `availability` answers a different question: whether the product is
+        buyable at all, which is true the moment any single size is in stock.
+        That is the retailer's answer, and showing it to someone watching a
+        sold-out M reads as a lie - the card says "In stock" about a size they
+        cannot buy.
+
+        Three-valued like everything else: all-unknown stays unknown rather
+        than being reported as sold out.
+        """
+        # No variants at all - the product as a whole is the only answer there is.
+        if not self.variants:
+            return StockStatus(self.availability)
+
+        watched = [variant for variant in self.variants if variant.is_watched]
+        if not watched:
+            return StockStatus(self.availability)
+
+        known = [v for v in watched if v.current_stock != StockStatus.UNKNOWN]
+        if not known:
+            return StockStatus.UNKNOWN
+
+        return (
+            StockStatus.IN_STOCK
+            if any(v.current_stock == StockStatus.IN_STOCK for v in known)
+            else StockStatus.OUT_OF_STOCK
+        )
+
+    def refresh_watched_availability(self) -> StockStatus:
+        """Recompute and store. Call after variants or the watch set change."""
+        status = self.compute_watched_availability()
+        self.watched_availability = status.value
+        return status
+
+    @property
+    def watched_variant_names(self) -> list[str]:
+        return [variant.variant_name for variant in self.variants if variant.is_watched]
+
+    def quick_verdict(self) -> PriceVerdict:
+        """A verdict from the stored aggregates alone, for list views.
+
+        `price_stats.compute_stats` is the real answer and uses the whole
+        series; this exists so that rendering fifty cards does not run fifty
+        history queries. It only claims what the three stored numbers can
+        support, and stays quiet otherwise.
+        """
+        if self.current_price is None:
+            return PriceVerdict.UNKNOWN
+
+        if self.lowest_price is not None and self.current_price <= self.lowest_price:
+            return PriceVerdict.BUY
+
+        if self.average_price and self.average_price > 0:
+            delta = (self.current_price - self.average_price) / self.average_price * 100
+            if delta <= -5:
+                return PriceVerdict.BUY
+            if delta >= 5:
+                return PriceVerdict.HIGH
+            return PriceVerdict.FAIR
+
+        return PriceVerdict.UNKNOWN
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<TrackedProduct {self.id} {self.name[:40]!r}>"

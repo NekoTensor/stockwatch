@@ -70,6 +70,81 @@ Exactly what the popup builds from a detection result:
 `watched_variant_ids` empty means "the product as a whole", which is the right
 behaviour for something with no variants.
 
+### Availability, twice
+
+Product rows carry two stock fields and they answer different questions:
+
+| Field | Meaning |
+|---|---|
+| `availability` | What the store says about the product overall |
+| `watched_availability` | What the store says about the sizes *this user watches* |
+
+The second is what the interface shows. A jacket whose XXL is in stock is not in
+stock to someone watching M, and reporting otherwise trains people to ignore the
+label. With no watched variants the two are identical.
+
+## Price intelligence
+
+`GET /products/{id}` returns `price_stats`:
+
+| Field | Meaning |
+|---|---|
+| `average_30d`, `median_30d`, `highest_30d`, `lowest_30d` | The recent window |
+| `lowest`, `highest`, `average` | All of recorded history |
+| `saving_vs_average` | Currency saved against `average_30d`, absent when the price is above it |
+| `percentile` | Share of past observations that were *cheaper* than now; `0` = best price seen |
+| `volatility` | Standard deviation as a percentage of the mean, so it compares across price ranges |
+| `observations` | How many checks the rest of this is built on |
+| `verdict` | `buy` · `fair` · `high` · `unknown` |
+| `verdict_reason` | The sentence behind the verdict |
+
+The verdict stays `unknown` below four observations. A spread of two or three
+readings is not a distribution, and dressing one up as advice is how a feature
+like this loses its credibility on the first wrong call.
+
+## Watch rules
+
+Rules replace the built-in alert heuristics for a product. Once a product has
+one active rule, *only* its rules can raise notifications for it — a user who has
+written down what they want should not also receive what we guessed.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/products/{id}/rules` | |
+| `POST` | `/products/{id}/rules` | 201 with a generated `description` |
+| `PATCH` | `/products/{id}/rules/{rule_id}` | Merged result is re-validated |
+| `DELETE` | `/products/{id}/rules/{rule_id}` | 204 |
+
+```json
+{
+  "variant_id": "M",
+  "stock_condition": "back_in_stock",
+  "price_condition": "below",
+  "price_value": "10000.00",
+  "combine": "all",
+  "notify_browser": true,
+  "notify_email": true,
+  "notify_discord": true,
+  "cooldown_minutes": 720
+}
+```
+
+**`stock_condition`**: `any`, `back_in_stock`, `in_stock`, `out_of_stock`.
+**`price_condition`**: `any`, `below`, `drops_by_percent`, `at_lowest`,
+`below_average`. **`combine`**: `all` or `any`.
+
+`variant_id` is the store's own label (`"M"`), not our row id, and must exist on
+the product — an unrecognised one is a 422 rather than a rule that silently
+watches everything. Omit it to watch the product as a whole.
+
+Two things worth knowing about evaluation:
+
+- **`back_in_stock` is a transition, not a state.** It fires on the check where
+  the variant crosses from out-of-stock to in-stock, and then not again until it
+  crosses back. State conditions like `in_stock` would otherwise fire on every
+  check forever, which is what `cooldown_minutes` exists to damp.
+- **Unknown never triggers.** A failed fetch is not news.
+
 ## Notifications
 
 | Method | Path | Notes |
@@ -82,6 +157,30 @@ behaviour for something with no variants.
 
 **Types**: `STOCK_AVAILABLE`, `PRICE_DROP`, `TARGET_PRICE_REACHED`,
 `LOWEST_PRICE_REACHED`, `PRICE_INCREASE`, `COMBINED_STOCK_AND_PRICE`.
+
+### Channels
+
+Three, chosen per rule and gated by the account's own switches on `PATCH
+/auth/me` (`browser_notifications`, `email_notifications`,
+`discord_notifications`, `discord_webhook_url`).
+
+| Channel | Delivery |
+|---|---|
+| Browser | The extension polls `/notifications/undelivered` |
+| Email | Resend, if `RESEND_API_KEY` is set |
+| Discord | A channel webhook the user pastes in Settings |
+
+`discord_webhook_url` is write-only: `GET /auth/me` reports
+`discord_configured: true` but never returns the URL, because it is a
+posting credential and there is no reason for the client to hold it.
+
+Delivery failures are recorded on the notification row (`email_error`,
+`discord_error`) and never abort the check that produced it — a webhook Discord
+has deleted should cost you one alert, not the run.
+
+Each alert carries the price context that justifies it ("12% below the 30-day
+average"), so the notification answers *should I act on this* without requiring
+a trip to the dashboard.
 
 ## Errors
 

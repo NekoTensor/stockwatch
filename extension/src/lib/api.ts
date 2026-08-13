@@ -269,7 +269,11 @@ export interface TrackedProductOut {
   highest_price: string | null;
   average_price: string | null;
   discount_percentage: number | null;
+  /** The retailer's answer: is this product buyable at all. */
   availability: Variant['availability'];
+  /** The user's answer: are the sizes they are watching buyable. Shown in the UI. */
+  watched_availability: Variant['availability'];
+  watched_variant_names: string[];
   last_checked_at: string | null;
   last_check_status: string | null;
   consecutive_failures: number;
@@ -282,7 +286,11 @@ export interface TrackedProductOut {
   created_at: string;
   updated_at: string;
   variants: TrackedVariantOut[];
+  verdict: PriceVerdict;
+  active_rule_count: number;
 }
+
+export type PriceVerdict = 'buy' | 'fair' | 'high' | 'unknown';
 
 export interface PriceStats {
   current: string | null;
@@ -292,9 +300,59 @@ export interface PriceStats {
   average: string | null;
   lowest_7d: string | null;
   lowest_30d: string | null;
+  highest_30d: string | null;
+  average_30d: string | null;
+  median_30d: string | null;
   change_percentage: number | null;
   below_highest_percentage: number | null;
+  vs_average_percentage: number | null;
+  saving_vs_average: string | null;
+  percentile: number | null;
+  volatility: number | null;
+  observations: number;
   is_at_lowest: boolean;
+  verdict: PriceVerdict;
+  verdict_reason: string;
+}
+
+export type StockCondition = 'any' | 'back_in_stock' | 'in_stock' | 'out_of_stock';
+export type PriceConditionKind = 'any' | 'below' | 'drops_by_percent' | 'at_lowest' | 'below_average';
+
+export interface WatchRuleOut {
+  id: number;
+  tracked_product_id: number;
+  tracked_variant_id: number | null;
+  label: string | null;
+  description: string;
+  stock_condition: StockCondition;
+  price_condition: PriceConditionKind;
+  combine: 'all' | 'any';
+  price_value: string | null;
+  percent_value: string | null;
+  notify_browser: boolean;
+  notify_email: boolean;
+  notify_discord: boolean;
+  is_active: boolean;
+  cooldown_minutes: number;
+  last_triggered_at: string | null;
+  trigger_count: number;
+  created_at: string;
+  variant_name: string | null;
+}
+
+export interface WatchRuleInput {
+  label?: string | null;
+  variant_id?: string | null;
+  stock_condition?: StockCondition;
+  price_condition?: PriceConditionKind;
+  combine?: 'all' | 'any';
+  price_value?: number | null;
+  percent_value?: number | null;
+  notify_browser?: boolean;
+  notify_email?: boolean;
+  notify_discord?: boolean;
+  is_active?: boolean;
+  cooldown_minutes?: number;
 }
 
 export interface ProductDetail extends TrackedProductOut {
@@ -306,6 +364,17 @@ export interface Page<T> {
   total: number;
   limit: number;
   offset: number;
+}
+
+export interface AccountOut {
+  id: number;
+  email: string;
+  display_name: string | null;
+  email_notifications: boolean;
+  browser_notifications: boolean;
+  discord_notifications: boolean;
+  /** Whether a webhook is set. The URL itself is never sent back. */
+  discord_configured: boolean;
 }
 
 export interface Overview {
@@ -453,6 +522,32 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ notification_ids: ids ?? null }),
     }),
+
+  listRules: (productId: number) => request<WatchRuleOut[]>(`/products/${productId}/rules`),
+
+  createRule: (productId: number, payload: WatchRuleInput) =>
+    request<WatchRuleOut>(`/products/${productId}/rules`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateRule: (productId: number, ruleId: number, payload: WatchRuleInput) =>
+    request<WatchRuleOut>(`/products/${productId}/rules/${ruleId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  deleteRule: (productId: number, ruleId: number) =>
+    request<void>(`/products/${productId}/rules/${ruleId}`, { method: 'DELETE' }),
+
+  updateAccount: (payload: {
+    discord_webhook_url?: string;
+    discord_notifications?: boolean;
+    email_notifications?: boolean;
+    browser_notifications?: boolean;
+  }) => request<AccountOut>('/auth/me', { method: 'PATCH', body: JSON.stringify(payload) }),
+
+  account: () => request<AccountOut>('/auth/me'),
 
   sendTest: (productId?: number) =>
     request<NotificationOut>('/notifications/test', {

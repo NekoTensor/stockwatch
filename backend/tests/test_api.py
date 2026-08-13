@@ -125,7 +125,12 @@ def test_tracking_urls_are_cleaned(client: TestClient, auth_headers: dict[str, s
 
 
 def test_list_filter_and_sort(client: TestClient, auth_headers: dict[str, str]):
-    client.post("/api/products/track", json=TRACK_PAYLOAD, headers=auth_headers)
+    # Watches S, which is available, so this one is in stock *for this user*.
+    client.post(
+        "/api/products/track",
+        json={**TRACK_PAYLOAD, "watched_variant_ids": ["S"]},
+        headers=auth_headers,
+    )
     client.post(
         "/api/products/track",
         json={
@@ -144,6 +149,8 @@ def test_list_filter_and_sort(client: TestClient, auth_headers: dict[str, str]):
     )
 
     assert client.get("/api/products", headers=auth_headers).json()["total"] == 2
+    # The stock filters agree with the labels the cards show, because both read
+    # the watched value rather than the retailer's.
     assert client.get("/api/products?status=in_stock", headers=auth_headers).json()["total"] == 1
     assert client.get("/api/products?status=out_of_stock", headers=auth_headers).json()["total"] == 1
     assert client.get("/api/products?store=myntra", headers=auth_headers).json()["total"] == 1
@@ -205,9 +212,24 @@ def test_overview(client: TestClient, auth_headers: dict[str, str]):
 
     overview = client.get("/api/products/overview", headers=auth_headers).json()
     assert overview["tracked_total"] == 1
-    assert overview["in_stock"] == 1
+    # The payload watches M and L, both sold out, while S is available. The
+    # counts answer "can I buy what I am watching", so this is not in stock.
+    assert overview["in_stock"] == 0
+    assert overview["out_of_stock"] == 1
     assert overview["total_saved"] == "3000.00"
     assert overview["currency"] == "INR"
+
+
+def test_overview_counts_a_watched_size_that_is_available(client: TestClient, auth_headers: dict[str, str]):
+    client.post(
+        "/api/products/track",
+        json={**TRACK_PAYLOAD, "watched_variant_ids": ["S"]},
+        headers=auth_headers,
+    )
+
+    overview = client.get("/api/products/overview", headers=auth_headers).json()
+    assert overview["in_stock"] == 1
+    assert overview["out_of_stock"] == 0
 
 
 # --------------------------------------------------------- notifications ----

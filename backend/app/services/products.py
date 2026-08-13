@@ -115,6 +115,7 @@ def track_product(db: Session, user: User, payload: TrackRequest) -> TrackedProd
             product.highest_price = max(product.highest_price or payload.current_price, payload.current_price)
 
     _sync_variants(db, product, payload)
+    product.refresh_watched_availability()
 
     # Check it promptly, but not instantly: the extension just read the page, so
     # an immediate re-fetch would only add load.
@@ -176,11 +177,13 @@ def list_products(
     query: Select = select(TrackedProduct).where(TrackedProduct.user_id == user.id)
 
     if status == "in_stock":
-        query = query.where(TrackedProduct.availability == StockStatus.IN_STOCK.value)
+        # Filtered on the watched value, so "In stock" lists exactly the cards
+        # the interface labels as in stock.
+        query = query.where(TrackedProduct.watched_availability == StockStatus.IN_STOCK.value)
     elif status == "out_of_stock":
-        query = query.where(TrackedProduct.availability == StockStatus.OUT_OF_STOCK.value)
+        query = query.where(TrackedProduct.watched_availability == StockStatus.OUT_OF_STOCK.value)
     elif status == "unknown":
-        query = query.where(TrackedProduct.availability == StockStatus.UNKNOWN.value)
+        query = query.where(TrackedProduct.watched_availability == StockStatus.UNKNOWN.value)
     elif status == "price_drop":
         query = query.where(
             and_(
@@ -252,6 +255,9 @@ def update_product(db: Session, product: TrackedProduct, payload: ProductUpdate)
         watched = set(payload.watched_variant_ids)
         for variant in product.variants:
             variant.is_watched = variant.variant_id in watched
+        # Changing which sizes are watched changes the answer to "is it in
+        # stock for me", so the stored value has to follow.
+        product.refresh_watched_availability()
 
     # Resuming should check soon rather than waiting out the old schedule.
     if payload.tracking_enabled:
@@ -335,9 +341,9 @@ def overview(db: Session, user: User) -> OverviewOut:
     return OverviewOut(
         tracked_total=count_where(),
         tracking_active=count_where(TrackedProduct.tracking_enabled.is_(True)),
-        in_stock=count_where(TrackedProduct.availability == StockStatus.IN_STOCK.value),
-        out_of_stock=count_where(TrackedProduct.availability == StockStatus.OUT_OF_STOCK.value),
-        unknown_stock=count_where(TrackedProduct.availability == StockStatus.UNKNOWN.value),
+        in_stock=count_where(TrackedProduct.watched_availability == StockStatus.IN_STOCK.value),
+        out_of_stock=count_where(TrackedProduct.watched_availability == StockStatus.OUT_OF_STOCK.value),
+        unknown_stock=count_where(TrackedProduct.watched_availability == StockStatus.UNKNOWN.value),
         price_drops_7d=price_drops,
         back_in_stock_7d=back_in_stock,
         at_lowest_price=count_where(
