@@ -44,6 +44,21 @@ class NotificationType(StrEnum):
 class NotificationChannel(StrEnum):
     BROWSER = "browser"
     EMAIL = "email"
+    DISCORD = "discord"
+
+
+class PriceVerdict(StrEnum):
+    """The one-word answer to "should I buy this now?".
+
+    `UNKNOWN` is not a hedge, it is the honest answer while the series is too
+    short to say anything: a verdict from three observations is a coin toss
+    wearing a suit.
+    """
+
+    BUY = "buy"
+    FAIR = "fair"
+    HIGH = "high"
+    UNKNOWN = "unknown"
 
 
 class NotificationPriority(StrEnum):
@@ -67,3 +82,29 @@ class JobStatus(StrEnum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+
+
+class StockCondition(StrEnum):
+    """What a watch rule wants the stock to do."""
+
+    ANY = "any"                      # stock is irrelevant to this rule
+    BACK_IN_STOCK = "back_in_stock"  # the transition, not the state
+    IN_STOCK = "in_stock"            # currently buyable, however it got there
+    OUT_OF_STOCK = "out_of_stock"    # tell me when it goes
+
+
+class PriceCondition(StrEnum):
+    """What a watch rule wants the price to do."""
+
+    ANY = "any"                        # price is irrelevant to this rule
+    BELOW = "below"                    # <= a number the user chose
+    DROPS_BY_PERCENT = "drops_by_percent"   # fell this much versus the last check
+    AT_LOWEST = "at_lowest"            # cheapest we have ever recorded
+    BELOW_AVERAGE = "below_average"    # this far under the 30-day average
+
+
+class ConditionCombine(StrEnum):
+    """How the two conditions are joined when both are set."""
+
+    ALL = "all"  # both must hold - "my size, at my price"
+    ANY = "any"  # either is enough

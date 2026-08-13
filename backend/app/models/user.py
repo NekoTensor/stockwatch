@@ -22,9 +22,15 @@ class User(Base, TimestampMixin):
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    #: Channel preferences. Per-product overrides live on TrackedProduct.
+    #: Channel preferences. Per-product overrides live on TrackedProduct, and
+    #: per-alert overrides on WatchRule; all three must agree for a send.
     email_notifications: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     browser_notifications: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    discord_notifications: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    #: An incoming webhook from the user's own Discord channel settings. Stored
+    #: rather than a bot token because it grants exactly one capability: posting
+    #: to that one channel.
+    discord_webhook_url: Mapped[str | None] = mapped_column(String(512))
 
     products: Mapped[list[TrackedProduct]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True

@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, health, notifications, products
+from app.api.routes import auth, health, notifications, products, rules
 from app.config import settings
 
 logging.basicConfig(
@@ -97,6 +97,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 app.include_router(health.router, prefix=settings.api_prefix)
 app.include_router(auth.router, prefix=settings.api_prefix)
 app.include_router(products.router, prefix=settings.api_prefix)
+app.include_router(rules.router, prefix=settings.api_prefix)
 app.include_router(notifications.router, prefix=settings.api_prefix)
 
 

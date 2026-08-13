@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
-from app.models.enums import StockStatus, VariantType
+from app.models.enums import PriceVerdict, StockStatus, VariantType
 from app.schemas.common import ORMModel
 
 
@@ -119,14 +119,36 @@ class VariantOut(ORMModel):
 class PriceStats(BaseModel):
     current: Decimal | None = None
     previous: Decimal | None = None
+
+    # All-time, over everything we have observed.
     lowest: Decimal | None = None
     highest: Decimal | None = None
     average: Decimal | None = None
+
+    # The recent window, which is what "is this a good price" really means.
     lowest_7d: Decimal | None = None
     lowest_30d: Decimal | None = None
+    highest_30d: Decimal | None = None
+    average_30d: Decimal | None = None
+    median_30d: Decimal | None = None
+
     change_percentage: float | None = None
     below_highest_percentage: float | None = None
+    vs_average_percentage: float | None = None
+    #: Money saved against the 30-day average, because that is the number
+    #: people want rather than a percentage they have to convert.
+    saving_vs_average: Decimal | None = None
+
+    #: Share of past observations that were cheaper than now. Low is good;
+    #: 0 means nothing has ever been cheaper.
+    percentile: int | None = None
+    #: Standard deviation as a percentage of the mean; how much this price moves.
+    volatility: float | None = None
+    observations: int = 0
+
     is_at_lowest: bool = False
+    verdict: PriceVerdict = PriceVerdict.UNKNOWN
+    verdict_reason: str = ""
 
 
 class ProductOut(ORMModel):
@@ -157,7 +179,13 @@ class ProductOut(ORMModel):
     average_price: Decimal | None
     discount_percentage: int | None = None
 
+    #: The retailer's answer: is this product buyable at all.
     availability: StockStatus
+    #: The user's answer: can they buy the sizes they asked to be told about.
+    #: This is what the interface shows; `availability` is kept for context.
+    watched_availability: StockStatus = StockStatus.UNKNOWN
+    watched_variant_names: list[str] = Field(default_factory=list)
+
     last_checked_at: datetime | None
     last_check_status: str | None
     consecutive_failures: int
@@ -172,6 +200,10 @@ class ProductOut(ORMModel):
     created_at: datetime
     updated_at: datetime
     variants: list[VariantOut] = Field(default_factory=list)
+    #: Computed from the stored aggregates rather than the full series, so a
+    #: list of fifty cards does not run fifty history queries.
+    verdict: PriceVerdict = PriceVerdict.UNKNOWN
+    active_rule_count: int = 0
 
 
 class ProductDetail(ProductOut):

@@ -47,9 +47,25 @@ class UserOut(ORMModel):
     display_name: str | None
     email_notifications: bool
     browser_notifications: bool
+    discord_notifications: bool
+    #: Whether one is set, not the URL itself: a webhook is a credential, and
+    #: echoing it back to every client that asks is how it ends up in a log.
+    discord_configured: bool = False
 
 
 class UserUpdate(BaseModel):
     display_name: str | None = Field(default=None, max_length=120)
     email_notifications: bool | None = None
     browser_notifications: bool | None = None
+    discord_notifications: bool | None = None
+    #: Empty string clears it.
+    discord_webhook_url: str | None = Field(default=None, max_length=512)
+
+    @field_validator("discord_webhook_url")
+    @classmethod
+    def _looks_like_a_discord_webhook(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return value
+        if not value.startswith(("https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/")):
+            raise ValueError("That does not look like a Discord webhook URL.")
+        return value

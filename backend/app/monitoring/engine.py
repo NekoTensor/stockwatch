@@ -19,7 +19,7 @@ from app.config import settings
 from app.database.base import utcnow
 from app.detection.pipeline import detect_product
 from app.models import MonitoringJob, Notification, TrackedProduct
-from app.models.enums import CheckStatus, JobStatus
+from app.models.enums import CheckStatus, JobStatus, PriceVerdict
 from app.monitoring.fetcher import FetchResult, fetch_page
 from app.notifications import engine as notifications
 from app.services.changes import ChangeSet, apply_snapshot
@@ -154,9 +154,37 @@ def check_product(db: Session, product: TrackedProduct, *, send_email: bool = Tr
     db.flush()
 
     if send_email and created:
-        from app.notifications.email import send_notification_email
-
-        for notification in created:
-            send_notification_email(notification)
+        deliver(db, created)
 
     return job
+
+
+def deliver(db: Session, notifications: list[Notification]) -> None:
+    """Push each alert to whichever channels it is addressed to.
+
+    Browser is not here: those are pulled by the extension rather than pushed,
+    so that an alert raised while the browser was closed still arrives when it
+    opens instead of being lost to a failed push.
+    """
+    from app.notifications.discord import send_notification_discord
+    from app.notifications.email import send_notification_email
+    from app.notifications.engine import _price_context
+    from app.services.price_stats import compute_stats
+
+    for notification in notifications:
+        # Computed once per alert and shared by both channels: it is a couple of
+        # aggregate queries, and the two would otherwise disagree if the price
+        # moved between them.
+        context = ""
+        verdict = PriceVerdict.UNKNOWN
+        try:
+            context = _price_context(db, notification.product)
+            verdict = compute_stats(db, notification.product).verdict
+        except Exception:  # noqa: BLE001 - context is a nicety, never a blocker
+            logger.debug("Could not compute price context", exc_info=True)
+
+        if notification.channel_email:
+            send_notification_email(notification, context)
+
+        if notification.channel_discord:
+            send_notification_discord(notification, verdict)

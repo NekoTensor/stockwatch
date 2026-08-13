@@ -7,10 +7,14 @@ which module the application happens to import first — Alembic autogenerate an
 
 from app.models.enums import (
     CheckStatus,
+    ConditionCombine,
     JobStatus,
     NotificationChannel,
     NotificationPriority,
     NotificationType,
+    PriceCondition,
+    PriceVerdict,
+    StockCondition,
     StockStatus,
     VariantType,
 )
@@ -20,16 +24,21 @@ from app.models.notification import Notification
 from app.models.product import TrackedProduct, TrackedVariant
 from app.models.store import Store
 from app.models.user import User
+from app.models.watch_rule import WatchRule
 
 __all__ = [
     "CheckStatus",
+    "ConditionCombine",
     "JobStatus",
     "MonitoringJob",
     "Notification",
     "NotificationChannel",
     "NotificationPriority",
     "NotificationType",
+    "PriceCondition",
     "PriceHistory",
+    "PriceVerdict",
+    "StockCondition",
     "StockHistory",
     "StockStatus",
     "Store",
@@ -37,4 +46,5 @@ __all__ = [
     "TrackedVariant",
     "User",
     "VariantType",
+    "WatchRule",
 ]

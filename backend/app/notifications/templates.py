@@ -25,21 +25,47 @@ def format_price(amount: Decimal | None, currency: str | None) -> str:
 
 
 def subject_for(notification: Notification) -> str:
-    return {
-        "STOCK_AVAILABLE": "Your size is back in stock",
-        "COMBINED_STOCK_AND_PRICE": "Back in stock, and cheaper",
-        "PRICE_DROP": "Price drop on something you are watching",
-        "TARGET_PRICE_REACHED": "It hit your target price",
-        "LOWEST_PRICE_REACHED": "Lowest price since you started tracking",
-        "PRICE_INCREASE": "Price went up on something you are watching",
-    }.get(notification.type, "StockWatch update")
+    """Lead with the product, not the category of event.
+
+    An inbox shows perhaps sixty characters. "Your size is back in stock" is
+    true of every restock alert ever sent and tells the reader nothing about
+    *which* thing came back; the product name and size do.
+    """
+    product = notification.product
+    name = product.name or "Your product"
+    size = notification.variant.variant_name if notification.variant else None
+    price = format_price(notification.price or product.current_price, product.currency)
+
+    if notification.type in {"STOCK_AVAILABLE", "COMBINED_STOCK_AND_PRICE"}:
+        if size:
+            return f"{name} — size {size} is back at {price}"
+        return f"{name} is back in stock at {price}"
+
+    if notification.type == "TARGET_PRICE_REACHED":
+        return f"{name} hit your target — now {price}"
+    if notification.type == "LOWEST_PRICE_REACHED":
+        return f"{name} is at its lowest yet — {price}"
+    if notification.type == "PRICE_DROP":
+        return f"{name} dropped to {price}"
+    if notification.type == "PRICE_INCREASE":
+        return f"{name} went up to {price}"
+
+    return f"StockWatch — {name}"
 
 
-def render_email(notification: Notification, product: TrackedProduct) -> tuple[str, str]:
+def render_email(
+    notification: Notification,
+    product: TrackedProduct,
+    price_context: str = "",
+) -> tuple[str, str]:
     """Return ``(html, plain_text)``.
 
     Both are produced: a text part is not optional if you want to stay out of
     spam folders, and some clients genuinely prefer it.
+
+    `price_context` is the line that makes this actionable - "12% below the
+    30-day average" - and is passed in rather than computed here so the
+    template stays free of database access.
     """
     name = escape(product.name or "Your product")
     store = escape(product.store.name if product.store else "")
@@ -53,8 +79,16 @@ def render_email(notification: Notification, product: TrackedProduct) -> tuple[s
     if store:
         detail_rows += _row("Store", store)
     if variant:
-        detail_rows += _row("Variant", variant)
+        detail_rows += _row("Size", variant)
     detail_rows += _row("Price", f"<strong>{price}</strong>" + (f' <span style="color:#8a8a8a;text-decoration:line-through;margin-left:6px">{previous}</span>' if previous else ""))
+
+    # The single line that turns "it's available" into "and it's a good price".
+    context_block = (
+        f'<tr><td style="padding-bottom:28px;font-size:13px;line-height:1.6;color:#1c7c3c">'
+        f"{escape(price_context)}</td></tr>"
+        if price_context
+        else ""
+    )
 
     image_block = (
         f'<td width="180" valign="top" style="padding:0 24px 0 0">'
@@ -82,9 +116,10 @@ def render_email(notification: Notification, product: TrackedProduct) -> tuple[s
             </td>
           </tr></table>
         </td></tr>
-        <tr><td style="padding-bottom:32px;font-size:13px;line-height:1.6;color:#333333">{escape(notification.message)}</td></tr>
+        <tr><td style="padding-bottom:20px;font-size:13px;line-height:1.6;color:#333333">{escape(notification.message)}</td></tr>
+        {context_block}
         <tr><td style="padding-bottom:36px">
-          <a href="{url}" style="display:inline-block;background:#000000;color:#ffffff;text-decoration:none;padding:14px 32px;font-size:11px;letter-spacing:.18em;text-transform:uppercase">View product</a>
+          <a href="{url}" style="display:inline-block;background:#000000;color:#ffffff;text-decoration:none;padding:14px 32px;font-size:11px;letter-spacing:.18em;text-transform:uppercase">Buy now</a>
         </td></tr>
         <tr><td style="border-top:1px solid #e5e5e5;padding-top:20px;font-size:11px;line-height:1.7;color:#8a8a8a">
           You are receiving this because you asked StockWatch to watch this product.<br />
@@ -101,12 +136,13 @@ def render_email(notification: Notification, product: TrackedProduct) -> tuple[s
         "",
         product.name or "",
         f"Store: {product.store.name}" if product.store else "",
-        f"Variant: {notification.variant.variant_name}" if notification.variant else "",
+        f"Size: {notification.variant.variant_name}" if notification.variant else "",
         f"Price: {price}" + (f" (was {previous})" if previous else ""),
         "",
         notification.message,
+        price_context,
         "",
-        product.url,
+        f"Buy now: {product.url}",
     ]
     text = "\n".join(line for line in text_lines if line)
 

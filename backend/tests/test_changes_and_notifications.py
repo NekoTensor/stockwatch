@@ -69,6 +69,76 @@ def snapshot(price: str | None = None, m_stock: StockStatus = StockStatus.OUT_OF
     )
 
 
+# --------------------------------------------- stock, from the user's side ----
+
+
+def watched_snapshot(m_stock: StockStatus, l_stock: StockStatus) -> ProductSnapshot:
+    """Two sizes, only M watched (per the `product` fixture)."""
+    return ProductSnapshot(
+        url="https://shop.example/p/1",
+        name="Leather Jacket",
+        currency="INR",
+        current_price=Decimal("12990.00"),
+        # The retailer says "buyable" whenever *any* size is in stock.
+        availability=StockStatus.IN_STOCK,
+        variants=[
+            VariantSnapshot(id="M", name="M", availability=m_stock),
+            VariantSnapshot(id="L", name="L", availability=l_stock),
+        ],
+    )
+
+
+def test_unwatched_size_does_not_make_the_product_in_stock(db: Session, product: TrackedProduct):
+    """The reported bug: L is in stock, M is not, and the user watches M."""
+    apply_snapshot(db, product, watched_snapshot(StockStatus.OUT_OF_STOCK, StockStatus.IN_STOCK))
+    db.commit()
+
+    # The retailer's answer is unchanged and still true...
+    assert product.availability == StockStatus.IN_STOCK
+    # ...but the answer the interface shows is about the size actually watched.
+    assert product.watched_availability == StockStatus.OUT_OF_STOCK
+
+
+def test_watched_size_in_stock_reports_in_stock(db: Session, product: TrackedProduct):
+    apply_snapshot(db, product, watched_snapshot(StockStatus.IN_STOCK, StockStatus.OUT_OF_STOCK))
+    db.commit()
+
+    assert product.watched_availability == StockStatus.IN_STOCK
+
+
+def test_watched_stock_is_unknown_when_nothing_is_known(db: Session, product: TrackedProduct):
+    """A size we cannot read is not a size that is sold out."""
+    variant = db.query(TrackedVariant).one()
+    variant.current_stock = StockStatus.UNKNOWN.value
+    db.commit()
+
+    apply_snapshot(db, product, watched_snapshot(StockStatus.UNKNOWN, StockStatus.IN_STOCK))
+    db.commit()
+
+    assert product.watched_availability == StockStatus.UNKNOWN
+
+
+def test_product_without_variants_falls_back_to_the_page_answer(db: Session, user: User):
+    product = TrackedProduct(
+        user_id=user.id,
+        url="https://shop.example/p/no-sizes",
+        name="One Size Scarf",
+        availability=StockStatus.IN_STOCK.value,
+    )
+    db.add(product)
+    db.commit()
+
+    assert product.compute_watched_availability() == StockStatus.IN_STOCK
+
+
+def test_watching_nothing_falls_back_to_the_page_answer(db: Session, product: TrackedProduct):
+    variant = db.query(TrackedVariant).one()
+    variant.is_watched = False
+    db.commit()
+
+    assert product.compute_watched_availability() == StockStatus.IN_STOCK
+
+
 # --------------------------------------------------------------- changes ----
 
 

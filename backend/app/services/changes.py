@@ -208,11 +208,15 @@ def apply_snapshot(db: Session, product: TrackedProduct, snapshot: ProductSnapsh
         )
 
     # --- product-level availability
+    #
+    # This is the *retailer's* answer - is this product buyable at all - and it
+    # is true as soon as any single size is in stock. What the user actually
+    # cares about, "can I buy the size I asked about", is derived separately by
+    # `TrackedProduct.watched_availability`, and that is what the UI shows.
     if snapshot.availability is not StockStatus.UNKNOWN:
         product.availability = snapshot.availability
     elif product.variants:
-        # Derive it from the variants rather than leaving a stale value: if any
-        # watched size is buyable, the product is buyable.
+        # Derive it rather than leaving a stale value behind.
         known = [v for v in product.variants if v.current_stock != StockStatus.UNKNOWN]
         if known:
             product.availability = (
@@ -220,5 +224,7 @@ def apply_snapshot(db: Session, product: TrackedProduct, snapshot: ProductSnapsh
                 if any(v.current_stock == StockStatus.IN_STOCK for v in known)
                 else StockStatus.OUT_OF_STOCK
             )
+
+    product.refresh_watched_availability()
 
     return changes

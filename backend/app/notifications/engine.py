@@ -163,6 +163,92 @@ def _build(
     )
 
 
+def _price_context(db: Session, product: TrackedProduct) -> str:
+    """One sentence putting the current price in context.
+
+    "Back in stock at 8,499" tells you nothing about whether to buy. "12% below
+    the 30-day average" does, and it is the difference between a notification
+    you act on and one you dismiss.
+    """
+    from app.services.price_stats import compute_stats
+
+    if product.current_price is None:
+        return ""
+
+    try:
+        stats = compute_stats(db, product)
+    except Exception:  # noqa: BLE001 - context is a nicety, never a blocker
+        logger.exception("Could not compute price context for product %s", product.id)
+        return ""
+
+    if stats.is_at_lowest and stats.observations >= 2:
+        return "This is the lowest price since you started tracking it."
+
+    if stats.vs_average_percentage is not None and abs(stats.vs_average_percentage) >= 3:
+        direction = "below" if stats.vs_average_percentage < 0 else "above"
+        return f"{abs(stats.vs_average_percentage):.0f}% {direction} the 30-day average."
+
+    return ""
+
+
+def _evaluate_watch_rules(db: Session, changes: ChangeSet) -> list[Notification]:
+    """Alerts driven by the user's own rules.
+
+    Deduplication here is the rule's cooldown rather than the price ledger: the
+    user said what they wanted to hear about, so the question is only how often.
+    """
+    from app.services.rules import evaluate_rules, mark_triggered
+
+    product = changes.product
+    created: list[Notification] = []
+
+    matches = evaluate_rules(db, product, changes)
+    if not matches:
+        return created
+
+    context = _price_context(db, product)
+    price_text = _format_price(product.current_price, product.currency)
+
+    for match in matches:
+        rule = match.rule
+        headline = (
+            f"{match.variant.variant_name} is back — {product.name}"
+            if match.is_restock and match.variant
+            else f"{product.name}"
+        )
+
+        body = match.reason.capitalize()
+        if product.current_price is not None:
+            body = f"{body}. Now {price_text}."
+        if context:
+            body = f"{body} {context}"
+
+        notification = _build(
+            product,
+            NotificationType.COMBINED_STOCK_AND_PRICE
+            if (match.stock_met and match.price_met)
+            else NotificationType.STOCK_AVAILABLE
+            if match.stock_met
+            else NotificationType.PRICE_DROP,
+            headline,
+            body,
+            variant=match.variant,
+            priority=NotificationPriority.HIGH,
+            price=product.current_price,
+            previous_price=changes.previous_price,
+        )
+        # The rule decides where this goes, overriding the product defaults.
+        notification.channel_browser = rule.notify_browser
+        notification.channel_email = rule.notify_email
+        notification.channel_discord = rule.notify_discord
+        notification.watch_rule_id = rule.id
+
+        created.append(notification)
+        mark_triggered(rule)
+
+    return created
+
+
 def evaluate(db: Session, changes: ChangeSet) -> list[Notification]:
     """Turn a change set into the notifications worth sending.
 
@@ -172,6 +258,17 @@ def evaluate(db: Session, changes: ChangeSet) -> list[Notification]:
     """
     product = changes.product
     created: list[Notification] = []
+
+    # When the user has written rules, those rules *are* the policy: the
+    # built-in heuristics below would otherwise fire alongside them and say the
+    # same thing twice in different words.
+    if any(rule.is_active for rule in product.watch_rules):
+        created = _evaluate_watch_rules(db, changes)
+        for notification in created:
+            db.add(notification)
+        if created:
+            logger.info("product=%s created %d rule notification(s)", product.id, len(created))
+        return created
 
     price_text = _format_price(changes.current_price, product.currency)
     previous_text = _format_price(changes.previous_price, product.currency)
