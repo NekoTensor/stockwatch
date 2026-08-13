@@ -21,12 +21,12 @@
 └──────────────────────────┬─────────────────────────────────┘
                            │
 ┌──────────────────────────▼─────────────────────────────────┐
-│  FastAPI          auth · products · history · alerts       │
-│  PostgreSQL       8 tables, Alembic-migrated               │
+│  FastAPI          auth · products · history · rules        │
+│  PostgreSQL       9 tables, Alembic-migrated               │
 │  Redis + Celery   beat every 5 min -> due products         │
 │                     group by host -> one task per store    │
 │                       fetch -> detect -> compare -> notify │
-│  Resend           email delivery                           │
+│  Resend + Discord email and webhook delivery               │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -147,6 +147,24 @@ alert about it, which is what makes `out → in → out → in` two notification
 rather than one.
 
 A price wobble below 1% or one currency unit is not news.
+
+### Rules override heuristics, they do not stack with them
+
+`services/rules.py` is a third decision, layered on top: if a product has active
+`watch_rule` rows, `notifications/engine.py` evaluates those and returns,
+skipping the built-in heuristics entirely. Running both would mean a user who
+asked for "M under ₹10,000" also gets pinged about L at ₹14,000 — an explicit
+rule is a statement about what *is not* wanted as much as what is.
+
+The evaluator distinguishes transitions from states. `back_in_stock` reads the
+change set, so it can only fire on the check where the crossing happened;
+`in_stock` reads the current state and would otherwise fire forever, which is
+what `cooldown_minutes` bounds. `UNKNOWN` satisfies no condition in either mode.
+
+Delivery is separate again — `monitoring/engine.py:deliver` fans one alert out
+to the channels its rule asked for, and channel failures are recorded on the
+notification row rather than raised. A dead Discord webhook must not be able to
+abort a monitoring run.
 
 ### Money is `Numeric`, never `float`
 
