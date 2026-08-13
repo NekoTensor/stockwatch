@@ -10,6 +10,8 @@ import { api, type ProductDetail, type TrackedProductOut } from '../../lib/api';
 import { currencySymbol, formatPrice } from '../../lib/price';
 import { StockLabel } from '../../popup/components/ui';
 import { PriceChart, type PricePoint } from './PriceChart';
+import { PriceIntelligence } from './PriceIntelligence';
+import { WatchRules } from './WatchRules';
 
 type Range = '7d' | '30d' | '90d' | 'all';
 
@@ -142,8 +144,14 @@ export function ProductPanel({
                 ) : null}
               </div>
 
-              <div className="mt-3">
-                <StockLabel status={current.availability} />
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <StockLabel status={current.watched_availability} />
+                {/* When the two disagree, say so rather than hiding it: the size
+                    you want is gone, but the product itself is still on sale. */}
+                {current.watched_availability !== current.availability &&
+                current.availability === 'in_stock' ? (
+                  <span className="sw-label">Other sizes available</span>
+                ) : null}
               </div>
 
               <a
@@ -178,14 +186,18 @@ export function ProductPanel({
           <PriceChart points={points} currency={current.currency} />
 
           {stats ? (
-            <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-2 text-[12px] sm:grid-cols-4">
-              <Stat label="Lowest" value={formatPrice(num(stats.lowest), current.currency ?? undefined)} />
-              <Stat label="Highest" value={formatPrice(num(stats.highest), current.currency ?? undefined)} />
-              <Stat label="Average" value={formatPrice(num(stats.average), current.currency ?? undefined)} />
-              <Stat label="30-day low" value={formatPrice(num(stats.lowest_30d), current.currency ?? undefined)} />
-            </dl>
+            <div className="mt-6">
+              <PriceIntelligence stats={stats} currency={current.currency} />
+            </div>
           ) : null}
         </section>
+
+        <WatchRules
+          productId={product.id}
+          variants={current.variants}
+          currency={current.currency}
+          onChanged={onChanged}
+        />
 
         {current.variants.length ? (
           <section className="sw-rule px-8 py-6">
@@ -239,17 +251,3 @@ export function ProductPanel({
   );
 }
 
-function num(value: string | null | undefined): number | undefined {
-  if (!value) return undefined;
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="sw-label">{label}</dt>
-      <dd className="mt-0.5">{value}</dd>
-    </div>
-  );
-}

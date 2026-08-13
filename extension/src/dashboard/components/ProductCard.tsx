@@ -10,6 +10,7 @@ import { useState } from 'react';
 import type { TrackedProductOut } from '../../lib/api';
 import { formatPrice } from '../../lib/price';
 import { StockLabel } from '../../popup/components/ui';
+import { PriceVerdictBadge } from './PriceVerdictBadge';
 
 function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
@@ -114,11 +115,22 @@ export function ProductCard({ product, onOpen, onPauseToggle, onDelete, onCheck,
             ) : null}
           </div>
 
+          {/* The watched state, not the retailer's: a card that says "In stock"
+              about a size the user cannot buy is worse than saying nothing. */}
           <div className="mt-2 flex items-center gap-3">
-            <StockLabel status={product.availability} />
+            <StockLabel status={product.watched_availability} />
             {watched.length ? (
               <span className="sw-label truncate">
                 {watched.map((variant) => variant.variant_name).join(' · ')}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <PriceVerdictBadge verdict={product.verdict} compact />
+            {product.active_rule_count > 0 ? (
+              <span className="sw-label">
+                {product.active_rule_count} {product.active_rule_count === 1 ? 'rule' : 'rules'}
               </span>
             ) : null}
           </div>

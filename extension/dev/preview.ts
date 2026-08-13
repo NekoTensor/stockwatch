@@ -155,6 +155,54 @@ async function renderPopup(): Promise<void> {
 
 // ----------------------------------------------------------- dashboard ----
 
+/** Shaped exactly like `PriceStats`, including the intelligence fields. */
+const PRICE_STATS = {
+  current: '12990.00',
+  previous: '13490.00',
+  lowest: '11990.00',
+  highest: '15990.00',
+  average: '14181.00',
+  lowest_7d: '12990.00',
+  lowest_30d: '11990.00',
+  highest_30d: '15990.00',
+  average_30d: '14181.00',
+  median_30d: '13990.00',
+  change_percentage: -3.71,
+  below_highest_percentage: -18.76,
+  vs_average_percentage: -8.4,
+  saving_vs_average: '1191.00',
+  percentile: 20,
+  volatility: 9.6,
+  observations: 10,
+  is_at_lowest: false,
+  verdict: 'buy',
+  verdict_reason: '8% below the 30-day average.',
+};
+
+const WATCH_RULES = [
+  {
+    id: 1,
+    tracked_product_id: 1,
+    tracked_variant_id: 2,
+    label: null,
+    description: 'M comes back in stock and price is at or below 10000',
+    stock_condition: 'back_in_stock',
+    price_condition: 'below',
+    combine: 'all',
+    price_value: '10000.00',
+    percent_value: null,
+    notify_browser: true,
+    notify_email: true,
+    notify_discord: true,
+    is_active: true,
+    cooldown_minutes: 720,
+    last_triggered_at: null,
+    trigger_count: 0,
+    created_at: new Date().toISOString(),
+    variant_name: 'M',
+  },
+];
+
 /** Canned API responses, shaped exactly like the FastAPI schemas. */
 function fakeBackend(): void {
   const products = [
@@ -268,23 +316,29 @@ function fakeBackend(): void {
           price: `${price}.00`,
           recorded_at: new Date(base + index * 3 * 864e5).toISOString(),
         })),
-        stats: {
-          current: '12990.00',
-          previous: '11990.00',
-          lowest: '11990.00',
-          highest: '15990.00',
-          average: '14181.00',
-          lowest_7d: '11990.00',
-          lowest_30d: '11990.00',
-          change_percentage: 8.34,
-          below_highest_percentage: -18.76,
-          is_at_lowest: false,
-        },
+        stats: PRICE_STATS,
       });
+    }
+    if (url.includes('/auth/me')) {
+      return json({
+        id: 1,
+        email: 'shopper@example.com',
+        display_name: null,
+        email_notifications: true,
+        browser_notifications: true,
+        discord_notifications: true,
+        discord_configured: true,
+      });
+    }
+    if (/\/products\/\d+\/rules/.test(url)) {
+      if (init?.method === 'POST' || init?.method === 'PATCH' || init?.method === 'DELETE') {
+        return json(WATCH_RULES[0]);
+      }
+      return json(WATCH_RULES);
     }
     if (url.includes('/notifications')) return json({ items: notifications, total: notifications.length, limit: 50, offset: 0 });
     if (/\/products\/\d+$/.test(url.split('?')[0])) {
-      return json({ ...products[0], price_stats: { current: '12990.00', lowest: '11990.00', highest: '15990.00', average: '14181.00', lowest_7d: '11990.00', lowest_30d: '11990.00', previous: '11990.00', change_percentage: 8.3, below_highest_percentage: -18.8, is_at_lowest: false } });
+      return json({ ...products[0], price_stats: PRICE_STATS });
     }
     if (url.includes('/products')) return json({ items: products, total: products.length, limit: 100, offset: 0 });
 
@@ -325,6 +379,10 @@ function product(
     average_price: original,
     discount_percentage: Math.round(((was - current) / was) * 100),
     availability,
+    watched_availability: availability,
+    watched_variant_names: variants.filter(([, , watched]) => watched).map(([name]) => name),
+    verdict: options.atLowest ? 'buy' : 'fair',
+    active_rule_count: id === 1 ? 1 : 0,
     last_checked_at: new Date(Date.now() - checkedMinutesAgo * 60000).toISOString(),
     last_check_status: 'ok',
     consecutive_failures: 0,
