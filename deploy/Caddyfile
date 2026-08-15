@@ -1,0 +1,23 @@
+# TLS for the API. Caddy obtains and renews the certificate itself; the only
+# prerequisite is that API_DOMAIN's A record already points at this host.
+
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# The extension is the only client, and it sends its own Authorization
+	# header — no cookies, so no CSRF surface to protect here.
+	reverse_proxy api:8000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		# The API returns JSON, never a page worth framing.
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

@@ -1,0 +1,69 @@
+# Production overlay. Use it alongside the base file, never on its own:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# What it changes: nothing but the proxy is reachable from outside the host,
+# TLS is terminated by Caddy (the extension needs https), the API trusts the
+# forwarded address, rate-limit counters move to Redis so they are shared across
+# workers, and everything comes back after a reboot.
+#
+# `!reset` needs Docker Compose v2.24 or newer.
+
+services:
+  db:
+    # Nothing outside the compose network has any business reaching Postgres.
+    ports: !reset []
+    restart: unless-stopped
+
+  redis:
+    ports: !reset []
+    restart: unless-stopped
+
+  api:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      # Caddy sets X-Forwarded-For and clients cannot reach the API directly,
+      # so the header can be believed — which is what makes per-address rate
+      # limiting mean anything behind a proxy.
+      TRUST_PROXY_HEADERS: "true"
+      # Shared across workers: in-process counters would give each worker its
+      # own allowance, quietly multiplying every limit.
+      RATE_LIMIT_STORAGE_URI: redis://redis:6379/1
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000
+             --workers 2 --proxy-headers --forwarded-allow-ips='*'"
+
+  worker:
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+
+  beat:
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_started }
+    environment:
+      # The domain the extension is built against. Caddy obtains and renews a
+      # certificate for it automatically, which is why 80 is published too:
+      # the ACME challenge and the redirect both arrive there.
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN to the API hostname, e.g. api.example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

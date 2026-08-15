@@ -236,7 +236,8 @@ STOCKWATCH_API_URL=https://api.example.com/api npm run build:release
 ```
 
 `build:release` refuses anything that is not https, which is what stops a store
-build from shipping pointed at a laptop.
+build from shipping pointed at a laptop. [docs/deploy.md](docs/deploy.md) covers
+getting a backend to that address.
 
 ## Try it
 
@@ -284,7 +285,7 @@ stockwatch/
 │   ├── app/notifications/      what is worth an interruption, and email
 │   └── app/worker.py           Celery tasks + beat schedule
 │
-└── docs/                       architecture · detection · api
+└── docs/                       architecture · detection · api · deploy
 ```
 
 **The detection engine exists twice** — once in TypeScript for the browser, once
