@@ -42,6 +42,20 @@ class Settings(BaseSettings):
     # --- redis / celery ---
     redis_url: str = "redis://localhost:6379/0"
 
+    # --- rate limiting ---
+    rate_limit_enabled: bool = True
+    #: In-process by default. With more than one API container a limit of N is
+    #: really N per container, so point this at Redis when you scale out.
+    rate_limit_storage_uri: str = "memory://"
+    #: Registration is slow on purpose: each account is a standing claim on the
+    #: monitoring budget, and nobody legitimately needs a second one this hour.
+    auth_register_limit: str = "5/hour"
+    auth_login_limit: str = "10/minute;100/hour"
+    auth_refresh_limit: str = "60/hour"
+    #: Whether X-Forwarded-For can be believed. True only when a proxy you
+    #: control overwrites it; otherwise a client can forge its own identity.
+    trust_proxy_headers: bool = False
+
     # --- monitoring ---
     #: Default gap between checks for a tracked product.
     check_interval_minutes: int = 60

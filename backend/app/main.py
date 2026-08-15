@@ -37,6 +37,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # noqa: ARG001
         Base.metadata.create_all(engine)
         logger.info("SQLite schema ensured (development only).")
 
+    if settings.is_production and not settings.rate_limit_enabled:
+        logger.warning("Rate limiting is off: /auth/login is an unlimited password oracle.")
+
     logger.info("StockWatch API starting in %s mode", settings.environment)
     yield
     logger.info("StockWatch API shutting down")

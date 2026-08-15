@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
+from app.api.limiter import login_limit, refresh_limit, register_limit
 from app.models import User
 from app.schemas.auth import (
     LoginRequest,
@@ -37,7 +38,12 @@ def _tokens(user: User) -> TokenPair:
     return TokenPair(access_token=access, refresh_token=refresh, expires_in=expires_in)
 
 
-@router.post("/register", response_model=TokenPair, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=TokenPair,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(register_limit)],
+)
 def register(payload: RegisterRequest, db: DbSession) -> TokenPair:
     email = payload.email.lower()
 
@@ -56,7 +62,7 @@ def register(payload: RegisterRequest, db: DbSession) -> TokenPair:
     return _tokens(user)
 
 
-@router.post("/login", response_model=TokenPair)
+@router.post("/login", response_model=TokenPair, dependencies=[Depends(login_limit)])
 def login(payload: LoginRequest, db: DbSession) -> TokenPair:
     user = db.scalars(select(User).where(User.email == payload.email.lower())).first()
 
@@ -70,7 +76,7 @@ def login(payload: LoginRequest, db: DbSession) -> TokenPair:
     return _tokens(user)
 
 
-@router.post("/refresh", response_model=TokenPair)
+@router.post("/refresh", response_model=TokenPair, dependencies=[Depends(refresh_limit)])
 def refresh(payload: RefreshRequest, db: DbSession) -> TokenPair:
     try:
         user_id = decode_token(payload.refresh_token, "refresh")

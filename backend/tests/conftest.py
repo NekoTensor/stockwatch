@@ -16,6 +16,14 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("EMAIL_ENABLED", "false")
 os.environ.setdefault("RESPECT_ROBOTS_TXT", "false")
 os.environ.setdefault("PER_HOST_DELAY_SECONDS", "0")
+# Every test that needs a session registers one, and TestClient presents the
+# same address each time, so the suite would exhaust the real limit within a
+# handful of tests. test_rate_limit.py turns it back on for itself, with the
+# small limits set here.
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+os.environ.setdefault("AUTH_REGISTER_LIMIT", "3/hour")
+os.environ.setdefault("AUTH_LOGIN_LIMIT", "3/minute")
+os.environ.setdefault("AUTH_REFRESH_LIMIT", "3/minute")
 
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
