@@ -67,7 +67,8 @@ STOCKWATCH_API_URL=https://api.yourdomain.com/api npm run build:release
 The address is baked into the bundle and the manifest's host permissions are
 derived from it, so there is no second place to update and no way for the two to
 disagree. `dist/` is what you zip for the Web Store — see
-[store-listing.md](store-listing.md).
+[store-listing.md](store-listing.md), which also covers the test account a
+reviewer needs before they can see the extension do anything.
 
 ## Email
 

@@ -290,7 +290,7 @@ stockwatch/
 │   ├── app/notifications/      what is worth an interruption, and email
 │   └── app/worker.py           Celery tasks + beat schedule
 │
-└── docs/                       architecture · detection · api · deploy
+└── docs/                       architecture · detection · api · deploy · store
 ```
 
 **The detection engine exists twice** — once in TypeScript for the browser, once
@@ -308,7 +308,7 @@ cd extension && npm run check
 cd backend && .venv/bin/pytest
 ```
 
-**214 tests, no network and no browser required.** Detection runs against saved
+**233 tests, no network and no browser required.** Detection runs against saved
 page *shapes* rather than copies of one store, monitoring runs against a mocked
 transport, and the notification rules are asserted directly:
 
