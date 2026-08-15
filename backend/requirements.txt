@@ -13,6 +13,7 @@ psycopg[binary]==3.2.3
 # --- auth ---
 PyJWT==2.10.1
 bcrypt==4.2.1
+limits==5.8.0
 
 # --- monitoring / extraction ---
 httpx==0.28.1

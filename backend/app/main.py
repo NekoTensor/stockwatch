@@ -37,7 +37,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # noqa: ARG001
         Base.metadata.create_all(engine)
         logger.info("SQLite schema ensured (development only).")
 
-    logger.info("StockWatch API starting in %s mode", settings.environment)
+    for warning in settings.production_warnings():
+        logger.warning("Configuration: %s", warning)
+
+    logger.info(
+        "StockWatch API starting in %s mode (email %s)",
+        settings.environment,
+        "on" if settings.email_enabled else "off",
+    )
     yield
     logger.info("StockWatch API shutting down")
 

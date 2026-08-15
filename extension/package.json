@@ -1,11 +1,12 @@
 {
   "name": "stockwatch-extension",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "StockWatch — universal product detection for Chrome (MV3).",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:release": "node scripts/build.mjs --release",
     "dev": "node scripts/build.mjs --watch",
     "preview": "vite --port 5173",
     "icons": "node scripts/generate-icons.mjs",

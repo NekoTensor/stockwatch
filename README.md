@@ -222,10 +222,22 @@ cd backend && .venv/bin/celery -A app.worker.celery_app beat --loglevel=info
 ```
 </details>
 
-> **Signing in needs the backend running.** The extension talks to
-> `http://localhost:8000/api` by default; if nothing is listening there, the
-> popup says so and offers a **Server** field to point it elsewhere. Start it
-> with `docker compose up -d`, or run `uvicorn app.main:app` from `backend/`.
+> **Signing in needs the backend running.** A development build talks to
+> `http://localhost:8000/api`; if nothing is listening there, the popup says so
+> and offers a **Server** field to point it elsewhere. Start it with
+> `docker compose up -d`, or run `uvicorn app.main:app` from `backend/`.
+
+To build against a deployed backend instead, name it — the address is baked in
+and the manifest's host permissions are derived from it, so the two cannot drift
+apart:
+
+```bash
+STOCKWATCH_API_URL=https://api.example.com/api npm run build:release
+```
+
+`build:release` refuses anything that is not https, which is what stops a store
+build from shipping pointed at a laptop. [docs/deploy.md](docs/deploy.md) covers
+getting a backend to that address.
 
 ## Try it
 
@@ -249,6 +261,11 @@ layers that fired, and **which layer produced each field**.
 - **No secrets in the browser.** The extension holds a session token; the
   database URL, JWT signing key and Resend key live on the server.
 - **Your own server.** The API base URL is editable in the popup.
+- **Leaving takes one call.** `DELETE /api/auth/me` removes the account, the
+  products, the price history, the rules and the notifications in one
+  transaction, with no copy kept.
+
+The full policy is [PRIVACY.md](PRIVACY.md).
 
 ## Architecture
 
@@ -273,7 +290,7 @@ stockwatch/
 │   ├── app/notifications/      what is worth an interruption, and email
 │   └── app/worker.py           Celery tasks + beat schedule
 │
-└── docs/                       architecture · detection · api
+└── docs/                       architecture · detection · api · deploy · store
 ```
 
 **The detection engine exists twice** — once in TypeScript for the browser, once
@@ -291,7 +308,7 @@ cd extension && npm run check
 cd backend && .venv/bin/pytest
 ```
 
-**214 tests, no network and no browser required.** Detection runs against saved
+**233 tests, no network and no browser required.** Detection runs against saved
 page *shapes* rather than copies of one store, monitoring runs against a mocked
 transport, and the notification rules are asserted directly:
 

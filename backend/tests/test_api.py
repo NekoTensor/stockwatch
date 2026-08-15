@@ -48,6 +48,26 @@ def test_register_login_and_me(client: TestClient):
     assert me.json()["email"] == "new@example.com"
 
 
+def test_deleting_an_account_takes_everything_with_it(client: TestClient, auth_headers: dict[str, str]):
+    tracked = client.post("/api/products/track", json=TRACK_PAYLOAD, headers=auth_headers)
+    assert tracked.status_code in (200, 201)
+
+    assert client.delete("/api/auth/me", headers=auth_headers).status_code == 204
+
+    # The token is signed rather than stored, so it survives — but the user it
+    # names does not, which is what makes it useless.
+    assert client.get("/api/auth/me", headers=auth_headers).status_code == 401
+
+    # And the products went with the account, not just the login.
+    again = client.post(
+        "/api/auth/register",
+        json={"email": "shopper@example.com", "password": "correct-horse-9"},
+    )
+    assert again.status_code == 201
+    fresh = {"Authorization": f"Bearer {again.json()['access_token']}"}
+    assert client.get("/api/products", headers=fresh).json()["total"] == 0
+
+
 def test_weak_passwords_are_rejected(client: TestClient):
     assert client.post("/api/auth/register", json={"email": "a@b.com", "password": "short"}).status_code == 422
     assert (

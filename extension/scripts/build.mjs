@@ -12,7 +12,11 @@
  * Passes 2 and 3 write to fixed, unhashed filenames on purpose: the popup
  * injects `content.js` by name, so the name has to be stable across builds.
  *
- * Run with `--watch` to rebuild on change while developing.
+ * Run with `--watch` to rebuild on change while developing, or with `--release`
+ * to build the artefact that goes to the Chrome Web Store — which requires
+ * STOCKWATCH_API_URL to name a real, https backend:
+ *
+ *   STOCKWATCH_API_URL=https://api.example.com/api npm run build:release
  */
 
 import { fileURLToPath } from 'node:url';
@@ -26,8 +30,45 @@ import { generateIcons } from './generate-icons.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, 'dist');
 const watch = process.argv.includes('--watch');
+const release = process.argv.includes('--release');
 
 const alias = { '@': path.join(root, 'src') };
+
+/** Matches the fallback in src/lib/config.ts. */
+const LOCAL_API = 'http://localhost:8000/api';
+/** Requestable rather than granted, so a self-hoster can point elsewhere. */
+const LOCAL_HOSTS = ['http://localhost/*', 'http://127.0.0.1/*'];
+
+const apiBaseUrl = (process.env.STOCKWATCH_API_URL ?? '').trim().replace(/\/+$/, '') || LOCAL_API;
+
+if (release && !apiBaseUrl.startsWith('https://')) {
+  // The whole point of the flag. A store build that talks to localhost is dead
+  // on arrival for everyone who is not the person who built it.
+  throw new Error(
+    `A release build needs an https API, got "${apiBaseUrl}".\n` +
+      '  STOCKWATCH_API_URL=https://api.example.com/api npm run build:release',
+  );
+}
+
+/**
+ * Which hosts the built extension may reach.
+ *
+ * Only the API this build actually talks to is granted outright; everything
+ * else is optional and requested at runtime when someone changes the server
+ * address. Match patterns are host-scoped and carry no port, so dropping
+ * `:8000` widens nothing that matters.
+ */
+function hostAccess(baseUrl) {
+  const { protocol, hostname } = new URL(baseUrl);
+  const primary = `${protocol}//${hostname}/*`;
+  const granted = LOCAL_HOSTS.includes(primary) ? [...LOCAL_HOSTS] : [primary];
+  // Chrome rejects a pattern that appears in both lists.
+  const optional = ['https://*/*', ...LOCAL_HOSTS].filter((pattern) => !granted.includes(pattern));
+  return { granted, optional };
+}
+
+/** Read back by src/lib/config.ts, which falls back when it is absent. */
+const define = { __API_BASE_URL__: JSON.stringify(apiBaseUrl) };
 
 /**
  * The two HTML surfaces: popup and dashboard.
@@ -41,6 +82,7 @@ function pagesConfig() {
     root,
     plugins: [react()],
     resolve: { alias },
+    define,
     build: {
       outDir,
       emptyOutDir: true,
@@ -60,6 +102,7 @@ function scriptConfig(entry, fileName) {
   return {
     root,
     resolve: { alias },
+    define,
     build: {
       outDir,
       emptyOutDir: false,
@@ -78,9 +121,35 @@ function scriptConfig(entry, fileName) {
   };
 }
 
-async function copyManifest() {
+/**
+ * The manifest is written, not merely copied.
+ *
+ * The hosts it declares are derived from the API this build was pointed at, so
+ * the permissions cannot drift from the address in the bundle, and the version
+ * comes from package.json — one number to bump, and no way to upload a zip
+ * whose manifest disagrees with the tag it was built from.
+ */
+async function writeManifest() {
   const source = path.join(root, 'manifest.json');
   const manifest = JSON.parse(await fs.readFile(source, 'utf8'));
+  const { version } = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
+  const { granted, optional } = hostAccess(apiBaseUrl);
+
+  // Chrome takes one to four dot-separated integers and rejects the rest of
+  // semver, so a "1.2.0-beta" in package.json has to fail here rather than at
+  // upload, an hour of packaging later.
+  if (!/^\d{1,5}(\.\d{1,5}){0,3}$/.test(version) || version.split('.').some((part) => Number(part) > 65535)) {
+    throw new Error(`package.json version "${version}" is not a valid extension version (e.g. 1.0.0).`);
+  }
+
+  if (manifest.version !== version) {
+    console.warn(`  manifest.json says ${manifest.version}; using ${version} from package.json`);
+  }
+
+  manifest.version = version;
+  manifest.host_permissions = granted;
+  manifest.optional_host_permissions = optional;
+
   await fs.writeFile(path.join(outDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return manifest.version;
 }
@@ -99,8 +168,9 @@ async function main() {
     await build(config);
   }
 
-  const version = await copyManifest();
+  const version = await writeManifest();
   console.log(`\n  StockWatch v${version} → ${path.relative(process.cwd(), outDir)}`);
+  console.log(`  API: ${apiBaseUrl}${release ? '' : '  (set STOCKWATCH_API_URL to change)'}`);
   console.log('  Load it with chrome://extensions → Developer mode → Load unpacked\n');
 }
 
