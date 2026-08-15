@@ -41,7 +41,7 @@ def send_notification_email(notification: Notification, price_context: str = "")
     user = notification.user
 
     if not settings.email_enabled:
-        notification.email_error = "Email delivery is disabled (EMAIL_ENABLED=false)."
+        notification.email_error = "Email delivery is off (set RESEND_API_KEY, or EMAIL_ENABLED=true)."
         return False
     if not user.email_notifications or not product.notify_email:
         notification.email_error = "Email disabled for this user or product."

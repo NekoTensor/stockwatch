@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -77,6 +77,7 @@ class Settings(BaseSettings):
     # --- notifications ---
     resend_api_key: str | None = None
     email_from: str = "StockWatch <alerts@stockwatch.local>"
+    #: Follows the API key unless set explicitly — see `_email_follows_the_key`.
     email_enabled: bool = False
     #: Never send the same alert twice within this window, whatever happens.
     notification_cooldown_minutes: int = 60
@@ -98,6 +99,20 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
+
+    @model_validator(mode="after")
+    def _email_follows_the_key(self) -> Settings:
+        """Configuring a provider is how you say you want email.
+
+        Two switches for one intention is one too many: the deployment that
+        went to the trouble of setting RESEND_API_KEY and then never saw an
+        email because EMAIL_ENABLED was still false is the whole reason for
+        this. An explicit EMAIL_ENABLED still wins, so it stays possible to
+        keep the key around with sending switched off.
+        """
+        if "email_enabled" not in self.model_fields_set and self.resend_api_key:
+            self.email_enabled = True
+        return self
 
     @property
     def is_production(self) -> bool:
@@ -124,9 +139,31 @@ class Settings(BaseSettings):
             problems.append("DEBUG must be off in production.")
         if self.email_enabled and not self.resend_api_key:
             problems.append("EMAIL_ENABLED is on but RESEND_API_KEY is missing.")
+        if self.email_enabled and self.email_from.rstrip(">").endswith(".local"):
+            problems.append(
+                f"EMAIL_FROM ({self.email_from}) is not a deliverable address; "
+                "use a domain verified with your email provider."
+            )
         if "sqlite" in self.database_url:
             problems.append("SQLite is not supported in production; use PostgreSQL.")
         return problems
+
+    def production_warnings(self) -> list[str]:
+        """Worth saying out loud, not worth refusing to start over."""
+        warnings: list[str] = []
+        if not self.is_production:
+            return warnings
+
+        if not self.email_enabled:
+            # Browser and Discord alerts still work, but a restock that happens
+            # while Chrome is closed then reaches nobody.
+            warnings.append(
+                "Email is off (set RESEND_API_KEY to turn it on): alerts will only "
+                "reach users while their browser is running."
+            )
+        if not self.rate_limit_enabled:
+            warnings.append("Rate limiting is off: /auth/login is an unlimited password oracle.")
+        return warnings
 
 
 @lru_cache
