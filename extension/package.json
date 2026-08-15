@@ -6,6 +6,7 @@
   "description": "StockWatch — universal product detection for Chrome (MV3).",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:release": "node scripts/build.mjs --release",
     "dev": "node scripts/build.mjs --watch",
     "preview": "vite --port 5173",
     "icons": "node scripts/generate-icons.mjs",

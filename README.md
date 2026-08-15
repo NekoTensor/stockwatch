@@ -222,10 +222,21 @@ cd backend && .venv/bin/celery -A app.worker.celery_app beat --loglevel=info
 ```
 </details>
 
-> **Signing in needs the backend running.** The extension talks to
-> `http://localhost:8000/api` by default; if nothing is listening there, the
-> popup says so and offers a **Server** field to point it elsewhere. Start it
-> with `docker compose up -d`, or run `uvicorn app.main:app` from `backend/`.
+> **Signing in needs the backend running.** A development build talks to
+> `http://localhost:8000/api`; if nothing is listening there, the popup says so
+> and offers a **Server** field to point it elsewhere. Start it with
+> `docker compose up -d`, or run `uvicorn app.main:app` from `backend/`.
+
+To build against a deployed backend instead, name it — the address is baked in
+and the manifest's host permissions are derived from it, so the two cannot drift
+apart:
+
+```bash
+STOCKWATCH_API_URL=https://api.example.com/api npm run build:release
+```
+
+`build:release` refuses anything that is not https, which is what stops a store
+build from shipping pointed at a laptop.
 
 ## Try it
 

@@ -11,9 +11,9 @@
  * their own.
  */
 
+import { DEFAULT_API_BASE_URL, apiOriginPattern } from './config';
 import type { ProductData, Variant } from './types';
 
-const DEFAULT_BASE_URL = 'http://localhost:8000/api';
 const STORAGE_KEY = 'stockwatch:session';
 const SETTINGS_KEY = 'stockwatch:settings';
 
@@ -47,12 +47,31 @@ export class ApiError extends Error {
 
 export async function getSettings(): Promise<ApiSettings> {
   const stored = await chrome.storage.local.get(SETTINGS_KEY);
-  return { baseUrl: DEFAULT_BASE_URL, ...(stored?.[SETTINGS_KEY] ?? {}) };
+  return { baseUrl: DEFAULT_API_BASE_URL, ...(stored?.[SETTINGS_KEY] ?? {}) };
 }
 
 export async function setBaseUrl(baseUrl: string): Promise<void> {
-  const trimmed = baseUrl.trim().replace(/\/+$/, '');
-  await chrome.storage.local.set({ [SETTINGS_KEY]: { baseUrl: trimmed || DEFAULT_BASE_URL } });
+  const trimmed = baseUrl.trim().replace(/\/+$/, '') || DEFAULT_API_BASE_URL;
+  await ensureHostAccess(trimmed);
+  await chrome.storage.local.set({ [SETTINGS_KEY]: { baseUrl: trimmed } });
+}
+
+/**
+ * A self-hosted address is not one the manifest already grants, so ask for it.
+ *
+ * `chrome.permissions.request` needs a user gesture, which is why this happens
+ * on save rather than on the first request: the only caller is the sign-in
+ * form's submit handler, and by the time a fetch fails the gesture is gone.
+ */
+async function ensureHostAccess(baseUrl: string): Promise<void> {
+  const origin = apiOriginPattern(baseUrl);
+  if (!origin) throw new ApiError(`"${baseUrl}" is not a valid http(s) address.`, 0);
+  if (typeof chrome === 'undefined' || !chrome.permissions) return;
+
+  if (await chrome.permissions.contains({ origins: [origin] })) return;
+  if (!(await chrome.permissions.request({ origins: [origin] }))) {
+    throw new ApiError(`StockWatch needs permission to reach ${origin} to use that server.`, 0);
+  }
 }
 
 export async function getSession(): Promise<Session | null> {
