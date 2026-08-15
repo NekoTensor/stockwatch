@@ -261,6 +261,11 @@ layers that fired, and **which layer produced each field**.
 - **No secrets in the browser.** The extension holds a session token; the
   database URL, JWT signing key and Resend key live on the server.
 - **Your own server.** The API base URL is editable in the popup.
+- **Leaving takes one call.** `DELETE /api/auth/me` removes the account, the
+  products, the price history, the rules and the notifications in one
+  transaction, with no copy kept.
+
+The full policy is [PRIVACY.md](PRIVACY.md).
 
 ## Architecture
 

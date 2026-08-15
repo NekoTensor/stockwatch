@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
@@ -116,3 +116,21 @@ def update_me(payload: UserUpdate, user: CurrentUser, db: DbSession) -> User:
     db.commit()
     db.refresh(user)
     return _user_out(user)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_me(user: CurrentUser, db: DbSession) -> Response:
+    """Delete the account and everything attached to it.
+
+    The privacy policy promises this, so it has to be real and it has to be
+    immediate: tracked products, variants, price and stock history, watch rules
+    and notifications all go with the row, by cascade at the database rather
+    than by a loop here that could miss one.
+
+    Tokens already issued are not revoked — they are signed, not stored — but
+    they authenticate a user that no longer exists, so every request made with
+    one fails on the next call.
+    """
+    db.delete(user)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

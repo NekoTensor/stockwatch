@@ -14,11 +14,18 @@ rejected — without that check a 30-minute credential would quietly become a
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/auth/register` | 10-char minimum, must mix letters with numbers or symbols |
-| `POST` | `/auth/login` | Same response for a wrong password and an unknown address, so the endpoint cannot enumerate accounts |
-| `POST` | `/auth/refresh` | Returns a new pair |
+| `POST` | `/auth/register` | 10-char minimum, must mix letters with numbers or symbols. Rate limited |
+| `POST` | `/auth/login` | Same response for a wrong password and an unknown address, so the endpoint cannot enumerate accounts. Rate limited |
+| `POST` | `/auth/refresh` | Returns a new pair. Rate limited |
 | `GET` | `/auth/me` | |
 | `PATCH` | `/auth/me` | Display name, channel preferences |
+| `DELETE` | `/auth/me` | 204. Removes the account, its products, history, rules and notifications |
+
+The three rate-limited endpoints answer `429` with a `Retry-After` header and
+the usual `detail` message once a caller has had its allowance. Limits are per
+address (`AUTH_LOGIN_LIMIT` and friends), and counters live in Redis when
+`RATE_LIMIT_STORAGE_URI` says so — in process memory otherwise, which means
+per container.
 
 ## Products
 
