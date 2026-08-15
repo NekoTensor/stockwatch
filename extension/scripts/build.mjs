@@ -122,15 +122,31 @@ function scriptConfig(entry, fileName) {
 }
 
 /**
- * The manifest is written, not merely copied: the hosts it declares are derived
- * from the API this build was pointed at, so the permissions can never drift
- * from the address in the bundle.
+ * The manifest is written, not merely copied.
+ *
+ * The hosts it declares are derived from the API this build was pointed at, so
+ * the permissions cannot drift from the address in the bundle, and the version
+ * comes from package.json — one number to bump, and no way to upload a zip
+ * whose manifest disagrees with the tag it was built from.
  */
 async function writeManifest() {
   const source = path.join(root, 'manifest.json');
   const manifest = JSON.parse(await fs.readFile(source, 'utf8'));
+  const { version } = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   const { granted, optional } = hostAccess(apiBaseUrl);
 
+  // Chrome takes one to four dot-separated integers and rejects the rest of
+  // semver, so a "1.2.0-beta" in package.json has to fail here rather than at
+  // upload, an hour of packaging later.
+  if (!/^\d{1,5}(\.\d{1,5}){0,3}$/.test(version) || version.split('.').some((part) => Number(part) > 65535)) {
+    throw new Error(`package.json version "${version}" is not a valid extension version (e.g. 1.0.0).`);
+  }
+
+  if (manifest.version !== version) {
+    console.warn(`  manifest.json says ${manifest.version}; using ${version} from package.json`);
+  }
+
+  manifest.version = version;
   manifest.host_permissions = granted;
   manifest.optional_host_permissions = optional;
 
