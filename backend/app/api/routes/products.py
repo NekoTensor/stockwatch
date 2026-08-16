@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.detection.pipeline import detect_product
@@ -25,6 +25,7 @@ from app.schemas.product import (
     VariantIn,
 )
 from app.services import products as service
+from app.services.dispatch import request_check
 from app.services.price_stats import RANGE_DAYS, compute_stats
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -106,10 +107,16 @@ def detect(payload: DetectRequest, user: CurrentUser) -> ProductSnapshotOut:  # 
 
 
 @router.post("/track", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
-def track(payload: TrackRequest, user: CurrentUser, db: DbSession) -> ProductOut:
+def track(
+    payload: TrackRequest, user: CurrentUser, db: DbSession, background: BackgroundTasks
+) -> ProductOut:
     product = service.track_product(db, user, payload)
     db.commit()
     db.refresh(product)
+
+    # After the commit, so whatever picks this up can see the row.
+    request_check(product.id, background)
+
     return _to_out(product)
 
 
