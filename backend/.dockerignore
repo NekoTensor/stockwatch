@@ -1,0 +1,37 @@
+# The Dockerfile ends with `COPY . .`, so anything not excluded here is shipped
+# inside the image. Without this file that includes a developer's .venv — a
+# Windows or macOS virtualenv, hundreds of megabytes, useless in a Linux
+# container and confusing to anyone who finds it there.
+
+# --- virtualenvs and caches ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- secrets ---
+# Configuration is injected at runtime. A .env baked into an image is a secret
+# in a layer, readable by anyone who can pull it.
+.env
+.env.*
+!.env.example
+
+# --- local state ---
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# --- not needed to run the service ---
+tests/
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+README.md
