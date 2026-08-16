@@ -30,6 +30,21 @@ class Settings(BaseSettings):
 
     # --- database ---
     database_url: str = "postgresql+psycopg://stockwatch:stockwatch@localhost:5432/stockwatch"
+    #: Connections *per process*, and there are several processes: two uvicorn
+    #: workers, a Celery worker and beat. A managed Postgres often allows far
+    #: fewer connections than the old 10+20 default multiplied out, so these
+    #: default low and are raised deliberately on hardware you control.
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+    db_pool_recycle_seconds: int = 1800
+    db_connect_timeout_seconds: int = 10
+    #: Set to "require" (or stricter) for any database reached over the
+    #: internet. Providers vary in whether they enforce it server-side.
+    db_sslmode: str | None = None
+    #: Turn off client-side pooling entirely. Correct when something else is
+    #: already pooling — PgBouncer in transaction mode, or a provider's own
+    #: pooled endpoint — where holding connections open fights the pooler.
+    db_disable_pooling: bool = False
 
     # --- auth ---
     # Generated per-process when unset so a developer is never silently running
