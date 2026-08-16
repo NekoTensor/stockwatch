@@ -39,7 +39,11 @@ celery_app.conf.update(
     beat_schedule={
         "dispatch-due-checks": {
             "task": "stockwatch.dispatch_due_checks",
-            "schedule": crontab(minute="*/5"),
+            # Every minute, not every five. This decides how late a check can
+            # be, not how often a store is hit — that is `next_check_at` per
+            # product and the per-host throttle. A sweep that finds nothing due
+            # costs one query.
+            "schedule": 60.0,
         },
         "retry-failed-emails": {
             "task": "stockwatch.retry_failed_emails",

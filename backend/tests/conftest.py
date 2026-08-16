@@ -16,6 +16,9 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("EMAIL_ENABLED", "false")
 os.environ.setdefault("RESPECT_ROBOTS_TXT", "false")
 os.environ.setdefault("PER_HOST_DELAY_SECONDS", "0")
+# Tracking a product asks for an immediate check. The suite must not make
+# network requests, so it is off here and asserted directly in test_dispatch.
+os.environ.setdefault("CHECK_ON_TRACK", "false")
 # Every test that needs a session registers one, and TestClient presents the
 # same address each time, so the suite would exhaust the real limit within a
 # handful of tests. test_rate_limit.py turns it back on for itself, with the

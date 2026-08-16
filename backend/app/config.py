@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     trust_proxy_headers: bool = False
 
     # --- monitoring ---
+    #: Check a product the moment it is tracked, instead of leaving it reading
+    #: "Not checked yet" until the next sweep. Off in tests, which must not make
+    #: network requests.
+    check_on_track: bool = True
     #: Default gap between checks for a tracked product.
     check_interval_minutes: int = 60
     #: A product nobody has opened in a while is checked less often.

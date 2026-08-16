@@ -34,6 +34,9 @@ type Tab =
   | 'notifications'
   | 'settings';
 
+/** How often the page refreshes itself. Our own API, not the shops'. */
+const REFRESH_MS = 30_000;
+
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'tracked', label: 'Tracked' },
@@ -82,10 +85,14 @@ export default function App() {
     void getSession().then(setSession);
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!session) return;
-    setLoading(true);
-    setError(null);
+    // A background refresh must not raise the spinner: the page would blink
+    // every thirty seconds while the user is reading it.
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
       if (tab === 'notifications') {
@@ -105,15 +112,47 @@ export default function App() {
         setSession(null);
         return;
       }
-      setError(apiError.message);
+      // A failed background poll is not worth replacing the page with an
+      // error — the next one is thirty seconds away.
+      if (!silent) setError(apiError.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [session, tab, sort, search]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Keep the page current on its own.
+   *
+   * Checks happen on the server, so the numbers here go stale while the tab
+   * sits open — and "reload to see if anything changed" is the whole feeling
+   * this product exists to remove. Polling our own API is cheap; it is the
+   * shops that must not be hit this often.
+   *
+   * Paused while the tab is hidden, because nobody is reading it.
+   */
+  useEffect(() => {
+    if (!session) return;
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load({ silent: true });
+    }, REFRESH_MS);
+
+    // A tab that has been in the background for an hour should not show an
+    // hour-old page for thirty seconds after coming back.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load({ silent: true });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [session, load]);
 
   const currency = overview?.currency ?? products[0]?.currency ?? undefined;
 
