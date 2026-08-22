@@ -19,6 +19,9 @@ os.environ.setdefault("PER_HOST_DELAY_SECONDS", "0")
 # Tracking a product asks for an immediate check. The suite must not make
 # network requests, so it is off here and asserted directly in test_dispatch.
 os.environ.setdefault("CHECK_ON_TRACK", "false")
+# Monitoring tests fetch through a mocked transport, against names that do not
+# resolve. test_ssrf.py turns the guard back on for itself.
+os.environ.setdefault("FETCH_GUARD_ENABLED", "false")
 # Every test that needs a session registers one, and TestClient presents the
 # same address each time, so the suite would exhaust the real limit within a
 # handful of tests. test_rate_limit.py turns it back on for itself, with the

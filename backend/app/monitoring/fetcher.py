@@ -2,6 +2,8 @@
 
 Design constraints, in priority order:
 
+0. **Never fetch somewhere the user should not be able to reach.** The URL is
+   theirs, the network is ours; see `safety` and `transfer`.
 1. **Never look like an attack.** One request at a time per host, a minimum gap
    between them, and honest identification in the User-Agent.
 2. **Never mistake our own failure for a fact about the product.** Every failure
@@ -24,6 +26,8 @@ import httpx
 
 from app.config import settings
 from app.models.enums import CheckStatus
+from app.monitoring import transfer
+from app.monitoring.safety import UnsafeUrlError
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +144,9 @@ def fetch_page(
     headers = {**DEFAULT_HEADERS, "User-Agent": settings.user_agent}
     owns_client = client is None
     http = client or httpx.Client(
-        timeout=timeout, follow_redirects=True, headers=headers, http2=False
+        # Redirects are followed inside `transfer`, one hop at a time, so that
+        # each destination is checked before it is fetched.
+        timeout=timeout, follow_redirects=False, headers=headers, http2=False
     )
 
     attempts = 0
@@ -153,7 +159,22 @@ def fetch_page(
             _throttle.wait(host, delay_override)
 
             try:
-                response = http.get(url, headers=headers)
+                response = transfer.get(http, url, headers)
+            except UnsafeUrlError as exc:
+                # Not retryable and not the store's fault: the address itself is
+                # refused. Returned rather than raised so the caller records it
+                # against the product like any other failed check.
+                logger.warning("Refused to fetch %s: %s", url, exc)
+                return FetchResult(
+                    status=CheckStatus.BLOCKED,
+                    attempts=attempts,
+                    error=str(exc),
+                )
+            except transfer.ResponseTooLarge as exc:
+                logger.warning("Abandoned oversized response from %s: %s", url, exc)
+                return FetchResult(status=CheckStatus.FAILED, attempts=attempts, error=str(exc))
+            except transfer.TooManyRedirects as exc:
+                return FetchResult(status=CheckStatus.FAILED, attempts=attempts, error=str(exc))
             except httpx.TimeoutException as exc:
                 last_error = f"Timeout after {timeout}s"
                 logger.warning("Timeout fetching %s (attempt %d): %s", url, attempts, exc)
@@ -181,7 +202,7 @@ def fetch_page(
                         error=f"Blocked by the store (HTTP {response.status_code}).",
                     )
 
-                if response.is_success:
+                if 200 <= response.status_code < 300:
                     text = response.text
                     if not text or len(text) < 200:
                         last_error = "Response body was empty or too short to parse."
@@ -191,7 +212,7 @@ def fetch_page(
                             html=text,
                             http_status=response.status_code,
                             attempts=attempts,
-                            final_url=str(response.url),
+                            final_url=response.url,
                         )
                 else:
                     last_error = f"HTTP {response.status_code}"

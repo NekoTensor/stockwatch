@@ -294,6 +294,9 @@ layers that fired, and **which layer produced each field**.
   injected only when *you* click the icon, and only into that tab.
 - **No secrets in the browser.** The extension holds a session token; the
   database URL, JWT signing key and Resend key live on the server.
+- **The server will not fetch your network.** A tracked URL is the user's and
+  the network is ours, so every address — and every redirect hop — is checked
+  against the public internet before a connection is made.
 - **Your own server.** The API base URL is editable in the popup.
 - **Leaving takes one call.** `DELETE /api/auth/me` removes the account, the
   products, the price history, the rules and the notifications in one

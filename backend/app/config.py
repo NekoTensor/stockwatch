@@ -95,6 +95,17 @@ class Settings(BaseSettings):
     max_consecutive_failures: int = 8
     request_timeout_seconds: float = 20.0
     max_retries: int = 3
+    #: Refuse URLs that resolve to a non-public address. Off only for tests,
+    #: which fetch through a mocked transport against names that do not exist.
+    #: Turning this off in production re-opens server-side request forgery.
+    fetch_guard_enabled: bool = True
+    #: Redirects are followed by hand so each hop can be checked. A chain
+    #: longer than this is a loop or an attempt to exhaust the check.
+    max_redirects: int = 5
+    #: A response larger than this is abandoned mid-read. A product page is
+    #: tens of kilobytes; anything at this size is a mistake or an attack, and
+    #: reading it into memory is how one URL takes the worker down.
+    max_response_bytes: int = 5_000_000
     #: Minimum seconds between two requests to the same host, across all users.
     per_host_delay_seconds: float = 3.0
     user_agent: str = (

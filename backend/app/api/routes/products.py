@@ -6,9 +6,11 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Response, status
 
 from app.api.deps import CurrentUser, DbSession
+from app.config import settings
 from app.detection.pipeline import detect_product
 from app.models import TrackedProduct
 from app.monitoring.fetcher import fetch_page
+from app.monitoring.safety import UnsafeUrlError, assert_safe_url
 from app.schemas.common import Page
 from app.schemas.product import (
     DetectRequest,
@@ -42,6 +44,20 @@ def _to_out(product: TrackedProduct) -> ProductOut:
     return out
 
 
+def _refuse_private_targets(url: str) -> None:
+    """Reject a URL the server must not fetch, as a 400 rather than a failure.
+
+    The message deliberately does not name the address it resolved to: on a
+    public API that would be a free internal port scan.
+    """
+    if not settings.fetch_guard_enabled:
+        return
+    try:
+        assert_safe_url(url)
+    except UnsafeUrlError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+
 def _require(db, user, product_id: int) -> TrackedProduct:  # noqa: ANN001
     product = service.get_product(db, user, product_id)
     if product is None:
@@ -59,6 +75,8 @@ def detect(payload: DetectRequest, user: CurrentUser) -> ProductSnapshotOut:  # 
     monitor sees.
     """
     url = str(payload.url)
+    _refuse_private_targets(url)
+
     try:
         result = fetch_page(url)
     except httpx.HTTPError as exc:
@@ -110,6 +128,11 @@ def detect(payload: DetectRequest, user: CurrentUser) -> ProductSnapshotOut:  # 
 def track(
     payload: TrackRequest, user: CurrentUser, db: DbSession, background: BackgroundTasks
 ) -> ProductOut:
+    # Refused here as well as in the fetcher. The fetcher is the boundary that
+    # matters, but a URL rejected at the door gives the user an error they can
+    # act on rather than a product that silently never checks.
+    _refuse_private_targets(str(payload.url))
+
     product = service.track_product(db, user, payload)
     db.commit()
     db.refresh(product)
