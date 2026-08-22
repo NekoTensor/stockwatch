@@ -11,14 +11,14 @@ AJIO, Nykaa, Amazon, Flipkart, Nike, Adidas, Uniqlo, ASOS, Decathlon, Sephora…
 _and the store you found last week that nobody has heard of._
 
 Browser extension for capture · FastAPI + Celery for monitoring · alerts by
-browser notification and email.
+browser notification, email and Discord.
 
 [![Manifest V3](https://img.shields.io/badge/Chrome-Manifest%20V3-111?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-111?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-111?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-111?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Celery](https://img.shields.io/badge/Celery-5.4-111?logo=celery&logoColor=white)](https://docs.celeryq.dev/)
-[![Tests](https://img.shields.io/badge/tests-157%20passing-1c7c3c)](#testing)
+[![Tests](https://img.shields.io/badge/tests-265%20passing-1c7c3c)](#testing)
 
 </div>
 
@@ -45,7 +45,7 @@ engine that reads it does not know the name of a single store.
 | **Remembers** | Every price observation, so lowest / highest / average / 7-day / 30-day are real numbers |
 | **Judges** | Turns that history into one word — **good time to buy**, fair, or high — and shows the reasoning |
 | **Obeys** | Watch rules you write: *this size, back in stock, under ₹10,000, tell me on Discord* |
-| **Alerts** | Browser, email and Discord, deduplicated so a price that holds never pings twice |
+| **Alerts** | Browser, email, and Discord — either a channel webhook or a direct message from the bot — deduplicated so a price that holds never pings twice |
 | **Never guesses** | A failed request is `unknown`, never "out of stock" |
 
 ## Why it works on stores nobody wrote code for
@@ -129,9 +129,29 @@ Two decisions worth knowing about:
 An alert exists to answer *should I act on this*, so it carries the reason:
 the product, the size, the price, what it was, and the context that makes it
 worth reading — "12% below the 30-day average" — with one button to the product
-page. Delivered to the browser, to email via Resend, and to Discord via a
-channel webhook you paste into Settings. A webhook Discord has deleted costs you
-one alert, not the run.
+page. Delivered to the browser, to email via Resend, and to Discord. A webhook
+Discord has deleted costs you one alert, not the run.
+
+### Discord
+
+Two ways in, and they answer different questions.
+
+A **webhook** posts to a channel you own: paste the URL from your own channel
+settings into Settings, and the alert appears there. It grants exactly one
+capability — posting to that one channel — and needs no application, no token
+and no invite.
+
+The **bot** messages *you*. Link your account once with `/link`, and restocks
+arrive as a direct message wherever you are, with no per-user setup. `/watching`
+reads back what is being tracked; `/unlink` stops it.
+
+Linking is a code issued to a signed-in session and redeemed from inside
+Discord, so holding both ends is the proof the two accounts are one person —
+pasting a Discord user id would prove nothing, since ids are public. Codes last
+fifteen minutes and work once.
+
+The bot is optional and off by default. Setup is in
+[docs/discord-bot.md](docs/discord-bot.md).
 
 ## Interface
 
@@ -236,8 +256,22 @@ STOCKWATCH_API_URL=https://api.example.com/api npm run build:release
 ```
 
 `build:release` refuses anything that is not https, which is what stops a store
-build from shipping pointed at a laptop. [docs/deploy.md](docs/deploy.md) covers
-getting a backend to that address.
+build from shipping pointed at a laptop.
+
+**Optional: the Discord bot.** Put a token in `.env` and start it alongside
+everything else. Without one, nothing changes and alerts go by browser and
+email.
+
+```bash
+docker compose --profile discord up -d bot
+```
+
+| | |
+|---|---|
+| [docs/deploy.md](docs/deploy.md) | Domain to running backend, with TLS |
+| [docs/discord-bot.md](docs/discord-bot.md) | Creating the application, inviting it, linking accounts |
+| [docs/store-listing.md](docs/store-listing.md) | Chrome Web Store answers and permission justifications |
+| [docs/api.md](docs/api.md) · [docs/detection.md](docs/detection.md) · [docs/architecture.md](docs/architecture.md) | Reference |
 
 ## Try it
 
@@ -288,6 +322,7 @@ stockwatch/
 │   ├── app/monitoring/         fetcher (retry · backoff · throttle · robots)
 │   ├── app/services/changes.py what changed
 │   ├── app/notifications/      what is worth an interruption, and email
+│   ├── app/bot/                Discord gateway — slash commands + DM delivery
 │   └── app/worker.py           Celery tasks + beat schedule
 │
 └── docs/                       architecture · detection · api · deploy · store · bot
@@ -308,7 +343,7 @@ cd extension && npm run check
 cd backend && .venv/bin/pytest
 ```
 
-**233 tests, no network and no browser required.** Detection runs against saved
+**265 tests, no network and no browser required.** Detection runs against saved
 page *shapes* rather than copies of one store, monitoring runs against a mocked
 transport, and the notification rules are asserted directly:
 
@@ -317,6 +352,8 @@ transport, and the notification rules are asserted directly:
 - a timeout, a 429, a 404 and a bot wall all leave stock **exactly as it was**
 - a rule for M ignores L returning; `back_in_stock` does not re-fire while it stays in stock
 - the verdict abstains under four observations, and `unknown` satisfies no condition
+- a link code works once, expires, and cannot point two accounts at one Discord user
+- a bot that was offline overnight does not replay yesterday's alerts into DMs
 
 There is also a preview harness that renders the real popup and dashboard in an
 ordinary tab, running the real pipeline against fixtures:
