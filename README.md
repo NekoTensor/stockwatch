@@ -290,7 +290,7 @@ stockwatch/
 │   ├── app/notifications/      what is worth an interruption, and email
 │   └── app/worker.py           Celery tasks + beat schedule
 │
-└── docs/                       architecture · detection · api · deploy · store
+└── docs/                       architecture · detection · api · deploy · store · bot
 ```
 
 **The detection engine exists twice** — once in TypeScript for the browser, once

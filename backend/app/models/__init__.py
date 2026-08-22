@@ -5,6 +5,7 @@ which module the application happens to import first — Alembic autogenerate an
 `create_all` both depend on that.
 """
 
+from app.models.discord_link import DiscordLinkCode
 from app.models.enums import (
     CheckStatus,
     ConditionCombine,
@@ -29,6 +30,7 @@ from app.models.watch_rule import WatchRule
 __all__ = [
     "CheckStatus",
     "ConditionCombine",
+    "DiscordLinkCode",
     "JobStatus",
     "MonitoringJob",
     "Notification",

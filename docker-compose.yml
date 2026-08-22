@@ -74,6 +74,24 @@ services:
       worker: { condition: service_started }
     command: celery -A app.worker.celery_app beat --loglevel=info
 
+  # Only started when a token is configured:
+  #   docker compose --profile discord up -d
+  # The rest of StockWatch works without it; alerts simply go by browser and
+  # email instead.
+  bot:
+    build: ./backend
+    profiles: ["discord"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-stockwatch}:${POSTGRES_PASSWORD:-stockwatch}@db:5432/${POSTGRES_DB:-stockwatch}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db: { condition: service_healthy }
+      api: { condition: service_started }
+    # One process only. Two gateway connections on one token means every
+    # command answered twice and every alert delivered twice.
+    command: python -m app.bot.main
+
 volumes:
   postgres_data:
   redis_data:
