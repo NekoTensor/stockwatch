@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.discord_link import DiscordLinkCode
     from app.models.notification import Notification
     from app.models.product import TrackedProduct
 
@@ -31,11 +32,18 @@ class User(Base, TimestampMixin):
     #: rather than a bot token because it grants exactly one capability: posting
     #: to that one channel.
     discord_webhook_url: Mapped[str | None] = mapped_column(String(512))
+    #: The Discord account this user linked, so the bot can DM them. Set only by
+    #: redeeming a link code — see DiscordLinkCode. A webhook posts to a channel
+    #: the user owns; this reaches the person wherever they are.
+    discord_user_id: Mapped[str | None] = mapped_column(String(32), unique=True, index=True)
 
     products: Mapped[list[TrackedProduct]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
     notifications: Mapped[list[Notification]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
+    discord_link_codes: Mapped[list[DiscordLinkCode]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
 

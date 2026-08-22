@@ -46,6 +46,11 @@ services:
     environment:
       ENVIRONMENT: production
 
+  bot:
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+
   proxy:
     image: caddy:2-alpine
     restart: unless-stopped

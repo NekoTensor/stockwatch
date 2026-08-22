@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.schemas.common import ORMModel
@@ -51,6 +53,9 @@ class UserOut(ORMModel):
     #: Whether one is set, not the URL itself: a webhook is a credential, and
     #: echoing it back to every client that asks is how it ends up in a log.
     discord_configured: bool = False
+    #: Whether a Discord account is linked for direct messages. The id itself
+    #: is never sent back; only whether there is one.
+    discord_linked: bool = False
 
 
 class UserUpdate(BaseModel):
@@ -69,3 +74,11 @@ class UserUpdate(BaseModel):
         if not value.startswith(("https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/")):
             raise ValueError("That does not look like a Discord webhook URL.")
         return value
+
+
+class DiscordLinkCodeOut(BaseModel):
+    """A code to type to the bot, and when it stops working."""
+
+    code: str
+    expires_at: datetime
+    expires_in_minutes: int

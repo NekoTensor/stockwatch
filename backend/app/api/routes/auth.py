@@ -5,8 +5,10 @@ from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
 from app.api.limiter import login_limit, refresh_limit, register_limit
+from app.config import settings
 from app.models import User
 from app.schemas.auth import (
+    DiscordLinkCodeOut,
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
@@ -14,6 +16,7 @@ from app.schemas.auth import (
     UserOut,
     UserUpdate,
 )
+from app.services import discord_link
 from app.services.security import (
     TokenError,
     create_access_token,
@@ -29,6 +32,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def _user_out(user: User) -> UserOut:
     out = UserOut.model_validate(user)
     out.discord_configured = bool(user.discord_webhook_url)
+    out.discord_linked = bool(user.discord_user_id)
     return out
 
 
@@ -132,5 +136,35 @@ def delete_me(user: CurrentUser, db: DbSession) -> Response:
     one fails on the next call.
     """
     db.delete(user)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ------------------------------------------------------------------ discord ----
+
+
+@router.post("/discord/link-code", response_model=DiscordLinkCodeOut)
+def discord_link_code(user: CurrentUser, db: DbSession) -> DiscordLinkCodeOut:
+    """Mint a code to type to the bot.
+
+    Issued to a signed-in session and redeemed from inside Discord, so holding
+    both ends is what proves the two accounts are the same person. Any code the
+    user has not yet used is retired here — two live codes means a mistyped
+    first one still works, which is exactly the window worth closing.
+    """
+    entry = discord_link.issue_code(db, user)
+    db.commit()
+
+    return DiscordLinkCodeOut(
+        code=entry.code,
+        expires_at=entry.expires_at,
+        expires_in_minutes=settings.discord_link_code_minutes,
+    )
+
+
+@router.delete("/discord/link", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def discord_unlink(user: CurrentUser, db: DbSession) -> Response:
+    """Detach the linked Discord account."""
+    discord_link.unlink(db, user)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

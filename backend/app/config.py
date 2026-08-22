@@ -93,6 +93,16 @@ class Settings(BaseSettings):
     )
     respect_robots_txt: bool = True
 
+    # --- discord bot ---
+    #: The bot's token. Unset means no bot: the API still issues link codes but
+    #: nothing is listening to redeem them, so the dashboard hides the option.
+    discord_bot_token: str | None = None
+    #: How long a link code stays valid. Short on purpose — it is read off one
+    #: screen and typed into another, which takes a minute, not a day.
+    discord_link_code_minutes: int = 15
+    #: How often the bot looks for alerts waiting to be sent as a DM.
+    discord_poll_seconds: int = 20
+
     # --- notifications ---
     resend_api_key: str | None = None
     email_from: str = "StockWatch <alerts@stockwatch.local>"

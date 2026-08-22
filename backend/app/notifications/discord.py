@@ -84,12 +84,19 @@ def send_notification_discord(notification: Notification, verdict: PriceVerdict 
     """Post one alert to the user's Discord webhook. Returns whether it went."""
     user = notification.user
 
-    webhook = user.discord_webhook_url
-    if not webhook:
-        notification.discord_error = "No Discord webhook configured."
-        return False
     if not user.discord_notifications or not notification.channel_discord:
         notification.discord_error = "Discord disabled for this user or alert."
+        return False
+
+    webhook = user.discord_webhook_url
+    if not webhook:
+        if user.discord_user_id:
+            # Bound for a direct message, which needs the gateway connection
+            # that only the bot process holds. Left pending deliberately, with
+            # no error recorded: the bot picks it up on its next poll, and an
+            # error here would look like a failure that never happened.
+            return False
+        notification.discord_error = "No Discord webhook configured."
         return False
 
     try:

@@ -18,6 +18,18 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def as_utc(value: datetime) -> datetime:
+    """Make a timestamp loaded from the database safe to compare in Python.
+
+    Postgres hands back an aware datetime for a timezone-aware column; SQLite,
+    which the tests run on, hands back a naive one. Comparing the two raises,
+    so anything that reads a stored timestamp and checks it against `utcnow()`
+    has to come through here first — the alternative is code that passes its
+    tests and raises in production, or the reverse.
+    """
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
 class Base(DeclarativeBase):
     pass
 

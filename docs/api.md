@@ -20,6 +20,8 @@ rejected — without that check a 30-minute credential would quietly become a
 | `GET` | `/auth/me` | |
 | `PATCH` | `/auth/me` | Display name, channel preferences |
 | `DELETE` | `/auth/me` | 204. Removes the account, its products, history, rules and notifications |
+| `POST` | `/auth/discord/link-code` | A code to redeem with the bot's `/link`. Single use, 15 minutes, retires any earlier one |
+| `DELETE` | `/auth/discord/link` | 204. Detaches the linked Discord account |
 
 The three rate-limited endpoints answer `429` with a `Retry-After` header and
 the usual `detail` message once a caller has had its allowance. Limits are per
