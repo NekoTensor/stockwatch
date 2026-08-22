@@ -113,6 +113,11 @@ class Settings(BaseSettings):
     discord_link_code_minutes: int = 15
     #: How often the bot looks for alerts waiting to be sent as a DM.
     discord_poll_seconds: int = 20
+    #: Sync slash commands to this one server as well as globally. Global
+    #: commands can take up to an hour to reach clients, which makes testing a
+    #: change feel broken; a guild sync is immediate. Set it while developing,
+    #: leave it unset in production where the bot serves many servers.
+    discord_guild_id: int | None = None
 
     # --- notifications ---
     resend_api_key: str | None = None

@@ -140,6 +140,14 @@ def send_test(payload: TestNotificationRequest, user: CurrentUser, db: DbSession
         price=product.current_price,
         currency=product.currency,
         is_test=True,
+        # A test that does not travel the same channels as a real alert tests
+        # nothing worth knowing. Discord counts as configured when there is
+        # something to deliver on: a webhook, or a linked account for the bot
+        # to message.
+        channel_browser=user.browser_notifications,
+        channel_email=user.email_notifications,
+        channel_discord=user.discord_notifications
+        and bool(user.discord_webhook_url or user.discord_user_id),
     )
     db.add(notification)
     db.commit()
@@ -149,6 +157,16 @@ def send_test(payload: TestNotificationRequest, user: CurrentUser, db: DbSession
         from app.notifications.email import send_notification_email
 
         send_notification_email(notification)
+        db.commit()
+        db.refresh(notification)
+
+    # A webhook is posted from here, as a real alert would be. A direct message
+    # is not: that needs the gateway connection the bot process holds, so the
+    # row is left for it to collect.
+    if notification.channel_discord and user.discord_webhook_url:
+        from app.notifications.discord import send_notification_discord
+
+        send_notification_discord(notification)
         db.commit()
         db.refresh(notification)
 

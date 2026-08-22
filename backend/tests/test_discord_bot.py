@@ -18,6 +18,7 @@ from app.models import DiscordLinkCode, Notification, TrackedProduct, User
 from app.models.enums import NotificationPriority, NotificationType
 from app.services import discord_link
 from app.services.security import hash_password
+from tests.test_api import TRACK_PAYLOAD
 
 
 def make_user(db, email="shopper@example.com", **kwargs) -> User:
@@ -267,3 +268,30 @@ def test_link_codes_die_with_the_account(client, auth_headers, db):
     client.delete("/api/auth/me", headers=auth_headers)
 
     assert db.scalars(select(DiscordLinkCode)).first() is None
+
+
+# ------------------------------------------------------------ test alerts ----
+
+
+def test_a_test_alert_reaches_a_linked_account(client, auth_headers, db):
+    """The first thing anyone presses after setting Discord up."""
+    client.post("/api/products/track", json=TRACK_PAYLOAD, headers=auth_headers)
+
+    user = db.scalars(select(User).where(User.email == "shopper@example.com")).first()
+    discord_link.redeem_code(db, discord_link.issue_code(db, user).code, "999")
+    db.commit()
+
+    response = client.post("/api/notifications/test", json={"send_email": False}, headers=auth_headers)
+    assert response.status_code == 201
+
+    # Left for the bot to collect, which is what makes it a real test of the
+    # channel rather than a row nobody looks at.
+    assert len(pending_dms(db)) == 1
+
+
+def test_a_test_alert_skips_discord_when_nothing_is_configured(client, auth_headers, db):
+    client.post("/api/products/track", json=TRACK_PAYLOAD, headers=auth_headers)
+
+    client.post("/api/notifications/test", json={"send_email": False}, headers=auth_headers)
+
+    assert pending_dms(db) == []

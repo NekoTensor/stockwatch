@@ -62,7 +62,33 @@ class StockWatchBot(discord.Client):
 
     async def setup_hook(self) -> None:
         await self.tree.sync()
+
+        if settings.discord_guild_id:
+            # Global commands can take an hour to reach clients; a guild sync
+            # lands at once. Copied rather than moved, so the global set stays
+            # registered for every other server.
+            guild = discord.Object(id=settings.discord_guild_id)
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            logger.info("Synced commands to server %s", settings.discord_guild_id)
+
         self.loop.create_task(self._deliver_forever())
+
+    async def on_ready(self) -> None:
+        # The only proof from outside that the token was accepted and the
+        # gateway is up. Without it a misconfigured bot looks exactly like a
+        # working one: a process that is running and saying nothing.
+        logger.info(
+            "Connected as %s, in %d server(s), delivering every %ds",
+            self.user,
+            len(self.guilds),
+            settings.discord_poll_seconds,
+        )
+        if not self.guilds:
+            logger.warning(
+                "Not in any server. Discord will refuse direct messages to anyone "
+                "who does not share one with the bot; invite it before linking."
+            )
 
     async def _deliver_forever(self) -> None:
         await self.wait_until_ready()
@@ -197,6 +223,14 @@ async def watching(interaction: discord.Interaction) -> None:
 def run() -> None:
     if not settings.discord_bot_token:
         raise SystemExit("DISCORD_BOT_TOKEN is not set; the bot has nothing to connect with.")
+
+    # Matches the API's format so one `docker compose logs` reads as one system.
+    # discord.py installs its own handler unless told not to, which would
+    # double every line.
+    logging.basicConfig(
+        level=logging.DEBUG if settings.debug else logging.INFO,
+        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+    )
     bot.run(settings.discord_bot_token, log_handler=None)
 
 
