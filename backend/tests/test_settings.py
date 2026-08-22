@@ -12,6 +12,16 @@ PRODUCTION = {
 }
 
 
+def build(**kwargs) -> Settings:
+    """Settings from arguments alone.
+
+    `_env_file=None` matters: the application reads the repository's .env, and
+    without this these tests would assert against whatever a developer happens
+    to have configured locally — passing on one machine and failing on the next.
+    """
+    return Settings(_env_file=None, **kwargs)
+
+
 @pytest.fixture(autouse=True)
 def _clean_email_env(monkeypatch):
     """conftest pins EMAIL_ENABLED for the suite; these tests are about the default."""
@@ -20,21 +30,21 @@ def _clean_email_env(monkeypatch):
 
 
 def test_a_provider_key_turns_email_on():
-    assert Settings(resend_api_key="re_test_key").email_enabled is True
+    assert build(resend_api_key="re_test_key").email_enabled is True
 
 
 def test_no_provider_key_leaves_email_off():
-    assert Settings().email_enabled is False
+    assert build().email_enabled is False
 
 
 def test_an_explicit_setting_still_wins(monkeypatch):
     """Keeping the key while sending is paused has to remain possible."""
     monkeypatch.setenv("EMAIL_ENABLED", "false")
-    assert Settings(resend_api_key="re_test_key").email_enabled is False
+    assert build(resend_api_key="re_test_key").email_enabled is False
 
 
 def test_production_rejects_an_undeliverable_sender():
-    settings = Settings(**PRODUCTION, resend_api_key="re_test_key")
+    settings = build(**PRODUCTION, resend_api_key="re_test_key")
 
     problems = settings.check_production()
 
@@ -43,7 +53,7 @@ def test_production_rejects_an_undeliverable_sender():
 
 
 def test_production_accepts_a_verified_sender():
-    settings = Settings(
+    settings = build(
         **PRODUCTION,
         resend_api_key="re_test_key",
         email_from="StockWatch <alerts@stockwatch.app>",
@@ -53,11 +63,11 @@ def test_production_accepts_a_verified_sender():
 
 
 def test_production_warns_when_email_is_off_without_refusing_to_start():
-    settings = Settings(**PRODUCTION)
+    settings = build(**PRODUCTION)
 
     assert settings.check_production() == []
     assert any("Email is off" in warning for warning in settings.production_warnings())
 
 
 def test_development_is_warned_about_nothing():
-    assert Settings().production_warnings() == []
+    assert build().production_warnings() == []
