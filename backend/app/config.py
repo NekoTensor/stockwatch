@@ -8,15 +8,26 @@ the browser extension — the extension talks to this API and nothing else.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+#: backend/
+_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+
+# The compose deployment passes the environment in directly, so this only
+# matters when something is run by hand — and by hand it is usually run from
+# backend/, where a bare ".env" resolves to a file that does not exist while
+# the real one sits in the repository root. Both are read, the nearer one
+# winning, so a local override remains possible.
+_ENV_FILES = (_PACKAGE_ROOT.parent / ".env", _PACKAGE_ROOT / ".env")
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILES,
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
