@@ -20,10 +20,23 @@ rejected — without that check a 30-minute credential would quietly become a
 | `GET` | `/auth/me` | |
 | `PATCH` | `/auth/me` | Display name, channel preferences |
 | `DELETE` | `/auth/me` | 204. Removes the account, its products, history, rules and notifications |
+| `POST` | `/auth/password/forgot` | 202 always, whether or not the address exists. Rate limited |
+| `POST` | `/auth/password/reset` | New password from an emailed code. Signs every session out |
+| `POST` | `/auth/logout-all` | Revokes every session, returns a fresh pair for this one |
+| `POST` | `/auth/email/verify/request` | 202. Sends a code. Rate limited |
+| `POST` | `/auth/email/verify` | Marks the address verified |
 | `POST` | `/auth/discord/link-code` | A code to redeem with the bot's `/link`. Single use, 15 minutes, retires any earlier one |
 | `DELETE` | `/auth/discord/link` | 204. Detaches the linked Discord account |
 
-The three rate-limited endpoints answer `429` with a `Retry-After` header and
+Sessions are revoked by number, not by deletion: tokens are signed rather
+than stored, so each carries the account's `token_version` and every token
+issued before a bump stops verifying. A password reset bumps it, and so does
+`logout-all`.
+
+Reset and verification codes are emailed rather than linked — the client is an
+extension, so there is no page to land on — and only their SHA-256 is stored.
+
+The rate-limited endpoints answer `429` with a `Retry-After` header and
 the usual `detail` message once a caller has had its allowance. Limits are per
 address (`AUTH_LOGIN_LIMIT` and friends), and counters live in Redis when
 `RATE_LIMIT_STORAGE_URI` says so — in process memory otherwise, which means
