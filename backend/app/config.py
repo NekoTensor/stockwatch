@@ -78,6 +78,10 @@ class Settings(BaseSettings):
     auth_register_limit: str = "5/hour"
     auth_login_limit: str = "10/minute;100/hour"
     auth_refresh_limit: str = "60/hour"
+    #: These send an email each time they are called, so an unlimited endpoint
+    #: is a way to use us to spam somebody else's inbox.
+    auth_forgot_password_limit: str = "5/hour"
+    auth_verify_email_limit: str = "5/hour"
     #: Whether X-Forwarded-For can be believed. True only when a proxy you
     #: control overwrites it; otherwise a client can forge its own identity.
     trust_proxy_headers: bool = False
@@ -129,6 +133,18 @@ class Settings(BaseSettings):
     #: change feel broken; a guild sync is immediate. Set it while developing,
     #: leave it unset in production where the bot serves many servers.
     discord_guild_id: int | None = None
+
+    # --- account recovery ---
+    #: Short: a reset code is a way into the account, and the user is sitting
+    #: in front of their inbox when they ask for one.
+    password_reset_minutes: int = 30
+    #: Long: nobody verifies an address the same minute they are asked to.
+    email_verify_hours: int = 48
+    #: Require a verified address before monitoring runs. Off by default so a
+    #: deployment without email configured still works; turn it on in
+    #: production, where an unverified signup is somebody else's address
+    #: carrying your monitoring bill.
+    require_email_verification: bool = False
 
     # --- notifications ---
     resend_api_key: str | None = None

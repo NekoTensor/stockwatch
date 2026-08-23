@@ -72,3 +72,39 @@ def send_notification_email(notification: Notification, price_context: str = "")
     notification.email_error = None
     logger.info("Sent notification %s to %s (%s)", notification.id, user.email, response)
     return True
+
+
+def send_auth_email(to: str, subject: str, heading: str, code: str, note: str) -> bool:
+    """Send one account code. Returns whether it went.
+
+    Deliberately plain: no product imagery, no marketing, nothing to click. An
+    email carrying a credential should look like the thing it is, and a reader
+    deciding whether it is a phishing attempt should have nothing to weigh up
+    but the code itself.
+    """
+    if not settings.email_enabled:
+        logger.warning("Cannot send %s to %s: email delivery is off.", subject, to)
+        return False
+
+    html = (
+        f'<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px">'
+        f'<p style="font-size:15px;color:#111">{heading}</p>'
+        f'<p style="font-size:28px;letter-spacing:4px;font-weight:600;color:#111;'
+        f'margin:24px 0">{code}</p>'
+        f'<p style="font-size:13px;color:#666;line-height:1.6">{note}</p>'
+        f'<p style="font-size:12px;color:#999;margin-top:32px">StockWatch</p>'
+        f"</div>"
+    )
+    text = f"{heading}\n\n{code}\n\n{note}\n\nStockWatch"
+
+    try:
+        resend = _client()
+        resend.Emails.send(
+            {"from": settings.email_from, "to": [to], "subject": subject, "html": html, "text": text}
+        )
+    except Exception as exc:  # noqa: BLE001 - provider errors must not escape
+        logger.exception("Failed to send %s to %s: %s", subject, to, exc)
+        return False
+
+    logger.info("Sent %s to %s", subject, to)
+    return True

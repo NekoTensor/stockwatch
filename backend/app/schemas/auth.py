@@ -7,6 +7,23 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from app.schemas.common import ORMModel
 
 
+def check_password_strength(value: str) -> str:
+    """A length floor plus a variety floor.
+
+    Deliberately modest: complexity rules that are too strict push people
+    towards `Password1!` everywhere. Length does the real work.
+
+    Shared by every path that sets a password. A reset that accepted weaker
+    passwords than registration would be a way around the rule rather than a
+    second opinion about it.
+    """
+    if value.strip() != value:
+        raise ValueError("Password must not start or end with whitespace.")
+    if value.isdigit() or value.isalpha():
+        raise ValueError("Password must mix letters with numbers or symbols.")
+    return value
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=10, max_length=128)
@@ -15,16 +32,7 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def _strength(cls, value: str) -> str:
-        """A length floor plus a variety floor.
-
-        Deliberately modest: complexity rules that are too strict push people
-        towards `Password1!` everywhere. Length does the real work.
-        """
-        if value.strip() != value:
-            raise ValueError("Password must not start or end with whitespace.")
-        if value.isdigit() or value.isalpha():
-            raise ValueError("Password must mix letters with numbers or symbols.")
-        return value
+        return check_password_strength(value)
 
 
 class LoginRequest(BaseModel):
@@ -56,6 +64,8 @@ class UserOut(ORMModel):
     #: Whether a Discord account is linked for direct messages. The id itself
     #: is never sent back; only whether there is one.
     discord_linked: bool = False
+    #: Whether the address has been proven to belong to whoever uses the account.
+    email_verified: bool = False
 
 
 class UserUpdate(BaseModel):
@@ -82,3 +92,21 @@ class DiscordLinkCodeOut(BaseModel):
     code: str
     expires_at: datetime
     expires_in_minutes: int
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    code: str = Field(min_length=4, max_length=32)
+    password: str = Field(min_length=10, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def _strength(cls, value: str) -> str:
+        return check_password_strength(value)
+
+
+class VerifyEmailRequest(BaseModel):
+    code: str = Field(min_length=4, max_length=32)

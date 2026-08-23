@@ -31,7 +31,7 @@ def get_current_user(
         raise CREDENTIALS_ERROR
 
     try:
-        user_id = decode_token(credentials.credentials, "access")
+        claims = decode_token(credentials.credentials, "access")
     except TokenError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -39,9 +39,19 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
-    user = db.get(User, user_id)
+    user = db.get(User, claims.user_id)
     if user is None or not user.is_active:
         raise CREDENTIALS_ERROR
+
+    # A token issued before the account's version was bumped was revoked - by a
+    # password reset, or by signing out everywhere. It is still perfectly
+    # signed, which is exactly why this check has to happen here.
+    if claims.version != user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This session has been signed out. Sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return user
 

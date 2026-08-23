@@ -132,3 +132,5 @@ def _humanise(seconds: int) -> str:
 register_limit = rate_limit("auth:register", settings.auth_register_limit)
 login_limit = rate_limit("auth:login", settings.auth_login_limit)
 refresh_limit = rate_limit("auth:refresh", settings.auth_refresh_limit)
+forgot_password_limit = rate_limit("auth:forgot", settings.auth_forgot_password_limit)
+verify_email_limit = rate_limit("auth:verify", settings.auth_verify_email_limit)

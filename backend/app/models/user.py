@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, String
+from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.auth_token import AuthToken
     from app.models.discord_link import DiscordLinkCode
     from app.models.notification import Notification
     from app.models.product import TrackedProduct
@@ -22,6 +24,13 @@ class User(Base, TimestampMixin):
     display_name: Mapped[str | None] = mapped_column(String(120))
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    #: When the address was proven to belong to whoever is using the account.
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: Bumped to invalidate every token already issued. Access and refresh
+    #: tokens are signed rather than stored, so this integer is the only way to
+    #: revoke one - on a password change, on sign-out-everywhere, and on any
+    #: future "this account was compromised".
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     #: Channel preferences. Per-product overrides live on TrackedProduct, and
     #: per-alert overrides on WatchRule; all three must agree for a send.
@@ -44,6 +53,9 @@ class User(Base, TimestampMixin):
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
     discord_link_codes: Mapped[list[DiscordLinkCode]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
+    auth_tokens: Mapped[list[AuthToken]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
 

@@ -18,7 +18,7 @@ browser notification, email and Discord.
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-111?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-111?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Celery](https://img.shields.io/badge/Celery-5.4-111?logo=celery&logoColor=white)](https://docs.celeryq.dev/)
-[![Tests](https://img.shields.io/badge/tests-265%20passing-1c7c3c)](#testing)
+[![Tests](https://img.shields.io/badge/tests-310%20passing-1c7c3c)](#testing)
 
 </div>
 
@@ -301,6 +301,9 @@ layers that fired, and **which layer produced each field**.
 - **Leaving takes one call.** `DELETE /api/auth/me` removes the account, the
   products, the price history, the rules and the notifications in one
   transaction, with no copy kept.
+- **Sessions can be revoked.** Tokens are signed rather than stored, so each
+  carries a version number; a password reset or "sign out everywhere" bumps it
+  and every token already issued stops working.
 
 The full policy is [PRIVACY.md](PRIVACY.md).
 
@@ -346,7 +349,7 @@ cd extension && npm run check
 cd backend && .venv/bin/pytest
 ```
 
-**265 tests, no network and no browser required.** Detection runs against saved
+**310 tests, no network and no browser required.** Detection runs against saved
 page *shapes* rather than copies of one store, monitoring runs against a mocked
 transport, and the notification rules are asserted directly:
 

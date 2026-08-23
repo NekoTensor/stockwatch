@@ -128,6 +128,15 @@ def detect(payload: DetectRequest, user: CurrentUser) -> ProductSnapshotOut:  # 
 def track(
     payload: TrackRequest, user: CurrentUser, db: DbSession, background: BackgroundTasks
 ) -> ProductOut:
+    if settings.require_email_verification and user.email_verified_at is None:
+        # Monitoring is the expensive part and the part that emails somebody.
+        # Doing it for an address nobody has proved they own is how a signup
+        # form becomes a way to spend your money on a stranger's behalf.
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Verify your email address before tracking products.",
+        )
+
     # Refused here as well as in the fetcher. The fetcher is the boundary that
     # matters, but a URL rejected at the door gives the user an error they can
     # act on rather than a product that silently never checks.
