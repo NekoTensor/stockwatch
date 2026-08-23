@@ -7,6 +7,10 @@ and `npm run build:release` refuses to produce a build that tries.
 This is the whole path from a domain to an extension that works for someone who
 is not you.
 
+Running it free on Oracle's Always Free tier with a DuckDNS hostname? Use
+[deploy-oracle.md](deploy-oracle.md) instead — same steps, with every
+Oracle-specific decision already made.
+
 ## What you need first
 
 | | |
