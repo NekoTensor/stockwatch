@@ -269,6 +269,7 @@ docker compose --profile discord up -d bot
 | | |
 |---|---|
 | [docs/deploy.md](docs/deploy.md) | Domain to running backend, with TLS |
+| [docs/deploy-oracle.md](docs/deploy-oracle.md) | The same, free, on Oracle Always Free + DuckDNS |
 | [docs/discord-bot.md](docs/discord-bot.md) | Creating the application, inviting it, linking accounts |
 | [docs/store-listing.md](docs/store-listing.md) | Chrome Web Store answers and permission justifications |
 | [docs/api.md](docs/api.md) · [docs/detection.md](docs/detection.md) · [docs/architecture.md](docs/architecture.md) | Reference |
